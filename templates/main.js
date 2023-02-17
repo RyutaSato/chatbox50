@@ -6,8 +6,12 @@ function addChatMessage(auther, body) {
     list.appendChild(item);
 }
 document.addEventListener('DOMContentLoaded', function (event) {
-    var socket = new WebSocket('ws://127.0.0.1:8000/ws');
-    addChatMessage('system', 'connecting...')
+    const uid = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('uid'))
+      .split('=')[1];
+    var socket = new WebSocket('ws://127.0.0.1:8000/ws/' + uid);
+    addChatMessage('system', 'connecting...');
     socket.onopen = function (event) {
         addChatMessage('system', 'connection successes!!');
     }
@@ -15,16 +19,17 @@ document.addEventListener('DOMContentLoaded', function (event) {
         addChatMessage('system', 'connection defused');
     }
     socket.onclose = function (event) {
-        addChatMessage('system', 'disconnected')
+        addChatMessage('system', 'disconnected');
     }
     socket.onmessage = function (event) {
         let msg = JSON.parse(event.data);
-        addChatMessage(msg.auther, msg.body);
+        addChatMessage(msg.auther, msg.content);
     }
-
-    document.getElementById('send').addEventListener('click', function () {
-        let text = document.getElementById('send-message').value;
-        socket.send(text);
-        document.getElementById('send-message').value = ""; // form clear
+    let send_button = document.getElementById('send');
+    send_button.addEventListener('click', function () {
+        let text = document.getElementById('send-message');
+        socket.send(text.value);
+        console.log(typeof(text))
+        text.value = ""; // form clear
     });
 });
