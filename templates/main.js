@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', function (event) {
       .split('; ')
       .find(row => row.startsWith('uid'))
       .split('=')[1];
-    var socket = new WebSocket('ws://127.0.0.1:8000/ws/' + uid);
+    var socket = new WebSocket('ws://127.0.0.1:8000/ws/{{room_uid}}/' + uid);
     addChatMessage('system', 'connecting...');
     socket.onopen = function (event) {
         addChatMessage('system', 'connection successes!!');
