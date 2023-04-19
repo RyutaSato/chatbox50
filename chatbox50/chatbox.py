@@ -31,8 +31,14 @@ class Chatbox:
         """
         self._name = name
         self._uid = uuid4()
-        self._service1 = ServiceWorker(name=s1_name, set_user_type=set_user_type, set_message_type=set_message_type)
-        self._service2 = ServiceWorker(name=s2_name, set_user_type=set_user_type, set_message_type=set_message_type)
+        self._s1_que = Queue()
+        self._s2_que = Queue()
+        self._service1 = ServiceWorker(name=s1_name,
+                                       set_user_type=set_user_type,
+                                       set_message_type=set_message_type)
+        self._service2 = ServiceWorker(name=s2_name,
+                                       set_user_type=set_user_type,
+                                       set_message_type=set_message_type)
 
 
 

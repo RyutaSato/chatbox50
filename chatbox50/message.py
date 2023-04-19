@@ -3,8 +3,8 @@ from enum import IntEnum
 
 
 class SentBy(IntEnum):
-    client = 0
-    server = 1
+    s1 = 0
+    s2 = 1
 
 
 class Message:
@@ -19,5 +19,5 @@ class Message:
         self.sent_by = sent_by
 
 if __name__ == '__main__':
-    a = SentBy.client
+    a = SentBy.s1
     print(a.name)
