@@ -1,8 +1,23 @@
 from datetime import datetime
+from enum import IntEnum
+
+
+class SentBy(IntEnum):
+    client = 0
+    server = 1
 
 
 class Message:
-    def __init__(self, uid, content: str, created_at: datetime = datetime.utcnow()):
-        self.uid = uid
+    def __init__(self,
+                 client_id,
+                 sent_by: SentBy | int,
+                 content: str,
+                 created_at: datetime = datetime.utcnow()):
+        self.client_id = client_id
         self.created_at = created_at
         self.content = content
+        self.sent_by = sent_by
+
+if __name__ == '__main__':
+    a = SentBy.client
+    print(a.name)

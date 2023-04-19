@@ -1,56 +1,18 @@
+
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport"
+          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+    <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>WebSocket Chat</title>
+    <script src="main.js"></script>
 </head>
 <body>
     <h1>WebSocket Chat</h1>
     <ul id="chat-list"></ul>
-    <input type="text" id="message-input" placeholder="メッセージを入力">
-    <button id="send-button">送信</button>
-    <script>
-        // WebSocketオブジェクトの生成
-            var socket = new WebSocket("ws://localhost:8080/chat");
-
-            // WebSocket接続成功時
-            socket.onopen = function(event) {
-                console.log("WebSocket接続成功");
-            };
-
-            // WebSocket接続失敗時
-            socket.onerror = function(event) {
-                console.error("WebSocket接続失敗");
-            };
-
-            // WebSocketメッセージ受信時
-            socket.onmessage = function(event) {
-                var message = JSON.parse(event.data);
-                var auther = message.auther;
-                var body = message.body;
-                var list = document.getElementById("chat-list");
-
-                // liタグの生成
-                var item = document.createElement("li");
-                item.innerHTML = "<b>" + auther + "</b>: " + body;
-                list.appendChild(item);
-            };
-
-            // WebSocket切断時
-            socket.onclose = function(event) {
-                console.log("WebSocket切断");
-            };
-
-            // 送信ボタンがクリックされたとき
-            document.getElementById("send-button").addEventListener("click", function() {
-                var text = document.getElementById("message-input").value;
-
-                // WebSocketサーバーにメッセージを送信
-                socket.send(text);
-
-                // 入力フォームをクリア
-                document.getElementById("message-input").value = "";
-            });
-
-    </script>
+    <label for="chat"></label><input type="text" id="chat" placeholder="メッセージを入力">
+    <button id="send">送信</button>
 </body>
 </html>
