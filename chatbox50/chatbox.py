@@ -1,81 +1,89 @@
-import asyncio
+from asyncio import Queue, create_task
 from uuid import UUID, uuid4
 from chatbox50.db_session import SQLSession
 from chatbox50.chat_client import ChatClient
-from chatbox50.message import Message
+from chatbox50.service_worker import ServiceWorker
+from chatbox50.message import Message, SentBy
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Chatbox:
     def __init__(self,
-                 name: str,
-                 room_id,
-                 create_room_and_get_room_id_callback: callable,
-                 que_room_id_and_msg_tuple: asyncio.Queue,
-                 uid: UUID | None = None,
+                 name: str = "chatbox50",
+                 s1_name: str = "server_1",
+                 s2_name: str = "server_2",
+                 # デフォルトのQueueに追加されるメッセージの型を指定します
+                 set_user_type=ChatClient,
+                 set_message_type=Message,
                  debug=False):
+        """
+        **** 全て文字列で管理 ****
+
+        Args:
+            name:
+            s1_name:
+            s2_name:
+            set_user_type:
+            set_message_type:
+            debug:
+        """
         self._name = name
-        self._room_id = room_id
-        if not callable(create_room_and_get_room_id_callback):
-            raise TypeError(f"create_room_and_get_room_id_callback is invalid argument. type: "
-                            f"{create_room_and_get_room_id_callback}, "
-                            f"{type(create_room_and_get_room_id_callback)}")
-        self._create_room_and_get_room_id_callback = create_room_and_get_room_id_callback
-        self.que_room_id_and_msg_tuple = que_room_id_and_msg_tuple
-        self.session = SQLSession(name, init=True, debug=debug)
-        if isinstance(uid, UUID):
-            self._uid = uid
-        else:
-            self._uid = uuid4()
-        self._monitored: set[int] = set()
-        self._active: dict[UUID, ChatClient] = dict()
-        # self._message_broker = create_task(self.__message_broker())
+        self._uid = uuid4()
+        self._s1_que = Queue()
+        self._s2_que = Queue()
+        self._service1 = ServiceWorker(name=s1_name,
+                                       set_user_type=set_user_type,
+                                       set_message_type=set_message_type)
+        self._service2 = ServiceWorker(name=s2_name,
+                                       set_user_type=set_user_type,
+                                       set_message_type=set_message_type)
+
+
 
     @property
     def name(self):
         return self._name
 
     @property
-    def room_id(self):
-        return self._room_id
-
-    @property
     def uid(self):
         return self._uid
 
     @property
-    def monitored(self):
-        return self._monitored
+    def service1(self):
+        return self._service1
 
-    #
-    # def create_new_client(self):
-    #     """
-    #     subscribe new ChatClient to Chatbox._active
-    #     Returns:
-    #         UUID: new ChatClient uid
-    #     """
-    #     client = ChatClient(self.session)
-    #     self._active[client.uid] = client
-    #     return client.uid
+    @property
+    def service2(self):
+        return self._service2
 
-    async def get_client_or_create_new_client(self, uid: UUID) -> ChatClient:
-        client = self._active.get(uid)
-        if client is None:
-            self.session.get_or_add_new_client_id(uid)
-            thread_id = await self._create_room_and_get_room_id_callback(uid)
-            client = ChatClient(session=self.session,
-                                thread_id=thread_id,
-                                que_thread_id_and_msg_tuple=self.que_room_id_and_msg_tuple,
-                                uid=uid)
-            self._active[uid] = client
-        return client
+    async def subscribe(self, client_id, client_queue):
+        user_id = self.session.get_user_id_from_client_id(client_id)
+        if user_id is None:
+            await self.create_new_client(client_id)
+        else:
+            self.create_exist_client(client_queue)
+
+    async def create_new_client(self, client_id, client_queue):
+        """
+        subscribe new ChatClient to Chatbox._active
+        Returns:
+            UUID: new ChatClient client_id
+        """
+        channel_id = await self.create_new_channel(client_id)
+        client = ChatClient(self.session, client_id, channel_id, client_queue)
+        self._active_client_ids[client.client_id] = client
+        self._active_server_ids[client.server_id] = client
+        return client.client_id
+
+    def create_exist_client(self, client_id):
+        cc: ChatClient = self._active_client_ids.get(client_id)
+        if cc is None:
+            cc = ChatClient(self.session, client_id, cc)
+        return cc
 
     def deactivate_client(self, uid: UUID):
-        client = self._active.get(uid)
-        client.commit_to_db()
-        del self._active[uid]
+        self._active_client_ids[uid].commit_to_db()
+        del self._active_client_ids[uid]
 
-    def add_message(self, client_uid: UUID, content: str, is_server=False):
-        client = self._active.get(client_uid)
-        print(client)
-        print(f"add_message: client: {client.thread_id} {client.messages}")
-        client.add_message(content, is_server)

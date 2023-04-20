@@ -1,83 +1,86 @@
-from uuid import UUID, uuid4
 import asyncio
-from fastapi import (
-    FastAPI, WebSocket, HTTPException, WebSocketException, WebSocketDisconnect, status,
-    Cookie, Request)
-from fastapi.templating import Jinja2Templates
+from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, Request
+from fastapi.responses import FileResponse, HTMLResponse
+from random import randint
+from uuid import uuid4, UUID
 import logging
-from chatbox50 import ChatClient, Chatbox
-from discord_server import DiscordServer
-import os
 
+from chatbox50 import Chatbox
+from discord_server import DiscordServer
+NAME = "sample"
+server_queue = asyncio.Queue()
+ds = DiscordServer()
+cb = Chatbox(NAME, server_queue, )
+app = FastAPI(title=NAME)
 logger = logging.getLogger(__name__)
 
-DISCORD_TOKEN = os.environ["DISCORD_TOKEN"]
-templates = Jinja2Templates(directory='templates')
-loop = asyncio.get_running_loop()
-tasks: set[asyncio.Task] = set()
-chat_boxes: dict[UUID, Chatbox] = dict()
 
-app = FastAPI()
-service = DiscordServer(name="ChatBox50", chat_boxes=chat_boxes, tasks=tasks)
+# ds = DiscordServer()
 
-tasks.add(loop.create_task(service.start(DISCORD_TOKEN), name="discord_server"))
-
-
-@app.on_event("shutdown")
-def shutdown():
-    for task in tasks:
-        task.cancel()
+@app.get("/")
+def root(request: Request):
+    token = request.cookies.get("token")
+    file_response = FileResponse("index.html")
+    if token is None:
+        file_response.set_cookie("token", str(uuid4()))
+    return file_response
 
 
-@app.get("/{room_uid}")
-async def get(request: Request, room_uid: UUID, uid: UUID | None = Cookie(default=None)):
-    print(chat_boxes)
-    if room_uid not in service.chat_boxes:
-        raise HTTPException(status_code=403, detail=f"{room_uid} is invalid")
-    response = templates.TemplateResponse("index.html", {"request": request, "room_uid": str(room_uid)})
-    if uid is None:
-        response.set_cookie(key='uid', value=str(uuid4()))
-    return response
+@app.get("/main.js")
+def main_js():
+    return FileResponse("main.js", filename="main" + str(randint(0, 1000000)) + ".js")
 
 
-@app.get("/{room_uid}/main.js")
-async def get(request: Request, room_uid: UUID):
-    return templates.TemplateResponse("main.js", {"request": request, "room_uid": str(room_uid)})
+@app.websocket("/ws", name=NAME)  # TODO: UUIDをつける
+async def websocket_endpoint(ws: WebSocket):
+    # TODO: Authentication
+    uid = uuid4()  # TODO
+    client_queue = asyncio.Queue()
+    logger.info(f"ws_endpoint: {str(uid)}")
+    if uid:
+        pass
+    cb.subscribe(uid, send_queue)
+    # 認証が完了すると，chatbox50が認識できる識別IDと，メッセージを受け取るQueueをもらう.
+    await ws.accept()
+    ws_messenger_task = asyncio.create_task(ws_messenger(ws, send_queue, uid))
+    await ws_messenger_task
 
 
-@app.websocket("/ws/{room_uid}/{uid}")
-async def ws_endpoint(websocket: WebSocket, room_uid: UUID, uid: UUID):
-    chat_box = chat_boxes.get(room_uid)
-    if not isinstance(chat_box, Chatbox):
-        raise WebSocketException(code=status.WS_1008_POLICY_VIOLATION)
-    client = await chat_box.get_client_or_create_new_client(uid)
-    await websocket.accept()
-    await websocket.send_json({"auther": "server", "content": "connected"})
-    try:
-        async with asyncio.TaskGroup() as tg:
-            s_task = tg.create_task(send_task(websocket, client))
-            r_task = tg.create_task(receive_task(websocket, client))
-            await s_task
-    except* WebSocketDisconnect:
-        s_task.cancel()
-        r_task.cancel()
-        logger.info(f"Disconnected uid:{uid} chat_box:{chat_box.name}")
-        chat_box.deactivate_client(uid)
+async def ws_messenger(ws: WebSocket, send_queue: asyncio.Queue, uid: UUID):
+    send_task = asyncio.create_task(_ws_sender(ws, send_queue))
+    receive_task = asyncio.create_task(_ws_receiver(ws, uid))
+    await send_task
+    await receive_task
 
 
-async def send_task(websocket: WebSocket, client: ChatClient):
-    print(f"waiting send task... uid: {client.uid}")
+async def _ws_sender(ws: WebSocket, queue: asyncio.Queue):
+    """ ** This function is completed **
+    Notes:
+        Queueから受け取ったメッセージをクライアントに送信します．
+    Args:
+        ws: WebSocket
+        queue: Discordからクライアントへ送るためのQueueです．
+
+    Returns:
+
+    """
     while True:
-        msg = await client.msg_thread_to_client.get()
-        print(f"message got {msg}")
-        await websocket.send_json({"auther": "server", "content": msg.content})
-        print(client.messages)
+        msg = await queue.get()
+        logger.debug(f"sender: {msg}")
+        await ws.send_json({"auther": "you", "content": msg})
 
 
-async def receive_task(websocket: WebSocket, client: ChatClient):
-    print('waiting for message')
+async def _ws_receiver(ws: WebSocket, uid: UUID):
+    """
+
+    Args:
+        ws:
+        uid:
+
+    Returns:
+
+    """
     while True:
-        msg = await websocket.receive_text()
-        print(f"received: {msg}")
-        await websocket.send_json({"auther": "you", "content": msg})
-        await client.add_message(msg)
+        msg: str = await ws.receive_text()
+
+        cb[uid] = msg
