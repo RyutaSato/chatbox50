@@ -73,15 +73,39 @@ class Chatbox:
             await self._service2.tasks[0]
         return
 
-    async def new_access_from_service1(self, uid, create_client_if_no_exist=True):
-        client = await self.__new_access_processing(SentBy.s2, uid)
+    def get_uid_from_service_id(self, sent_by: SentBy, service_id) -> UUID:
+        # service_id は型が決まっていない．全て，DBにアクセスする際は，str型にする
+        if sent_by == SentBy.s1:
+            uid: UUID | None = self._service1._get_uid_from_service_id(service_id)
+        elif sent_by == SentBy.s2:
+            uid: UUID | None = self._service2._get_uid_from_service_id(service_id)
+        else:
+            raise TypeError(f"get_uid_from_service_id: doesn't match the type {type(sent_by)} of `sent_by`")
+        return uid
+    async def new_access_from_service1(self, service1_id, create_client_if_no_exist=True):
+        sent_by = SentBy.s1
+
+        # get uid from service1_id
+        uid: UUID | None = self.get_uid_from_service_id(sent_by, service1_id)
+        if not create_client_if_no_exist:
+            pass
+
+        client: ChatClient = await self.__new_access_processing(sent_by, uid)
         return client
 
-    async def new_access_from_service2(self, uid, create_client_if_no_exist=True):
-        await self.__new_access_processing(SentBy.s2, uid)
+    async def new_access_from_service2(self, service2_id, create_client_if_no_exist=True):
+        sent_by = SentBy.s2
+
+        # get uid from service1_id
+        uid: UUID | None = self.get_uid_from_service_id(sent_by, service2_id)
+
+        client: ChatClient = await self.__new_access_processing(sent_by, uid)
+        return client
 
     async def __new_access_processing(self, sent_by: SentBy, uid):
+        #
         # ChatClientを作成する．
+
         # ChatClientインスタンスに，メッセージ可能なコールバックを含める
 
         # ChatClientを返す
