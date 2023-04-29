@@ -79,7 +79,8 @@ class ServiceWorker:
                 # If the client is active.
                 client.add_message(msg)
                 if self._received_message_awaitable_callback is None:
-                    logger.info(f"the callback that called when service worker received message doesn't set."
+                    logger.info(f"the callback that called when the {self._name} service worker received message "
+                                f"doesn't set."
                                 f"That's why the process was skipped. "
                                 f"If you want to solve it, set using `set_received_message_callback`")
                     continue
