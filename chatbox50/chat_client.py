@@ -9,13 +9,19 @@ logger = logging.getLogger("client")
 
 class ChatClient:
     def __init__(self,
-                 uid: UUID | str,
+                 uid: UUID,
+                 s1_id,
+                 s2_id,
                  messages=None,
                  ):
         if messages is None:
             self.__messages = []
         else:
             self.__messages: list[Message] = messages
+        self.__s1_id = s1_id
+        self.__s2_id = s2_id
+        self.message_callback = None
+
         self.__msg_num = 0
         if isinstance(uid, str):
             self.__uid = UUID(uid)
