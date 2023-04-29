@@ -35,12 +35,16 @@ class Chatbox:
         self._s2_que = Queue()
         self._service1 = ServiceWorker(name=s1_name,
                                        set_user_type=set_user_type,
-                                       set_message_type=set_message_type)
+                                       set_message_type=set_message_type,
+                                       set_service_number=SentBy.s1,
+                                       upload_que=self._s1_que
+                                       )
         self._service2 = ServiceWorker(name=s2_name,
                                        set_user_type=set_user_type,
-                                       set_message_type=set_message_type)
-
-
+                                       set_message_type=set_message_type,
+                                       set_service_number=SentBy.s2,
+                                       upload_que=self._s2_que
+                                       )
 
     @property
     def name(self):
@@ -57,6 +61,31 @@ class Chatbox:
     @property
     def service2(self):
         return self._service2
+
+    def run(self):
+        self._service1.run()
+        self._service2.run()
+
+    async def blocking_run(self):
+        if self._service1.is_running():
+            await self._service1.tasks[0]
+        if self._service2.is_running():
+            await self._service2.tasks[0]
+        return
+
+    async def new_access_from_service1(self, uid, create_client_if_no_exist=True):
+        client = await self.__new_access_processing(SentBy.s2, uid)
+        return client
+
+    async def new_access_from_service2(self, uid, create_client_if_no_exist=True):
+        await self.__new_access_processing(SentBy.s2, uid)
+
+    async def __new_access_processing(self, sent_by: SentBy, uid):
+        # ChatClientを作成する．
+        # ChatClientインスタンスに，メッセージ可能なコールバックを含める
+
+        # ChatClientを返す
+        pass
 
     async def subscribe(self, client_id, client_queue):
         user_id = self.session.get_user_id_from_client_id(client_id)
@@ -86,4 +115,3 @@ class Chatbox:
     def deactivate_client(self, uid: UUID):
         self._active_client_ids[uid].commit_to_db()
         del self._active_client_ids[uid]
-
