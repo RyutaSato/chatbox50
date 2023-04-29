@@ -1,9 +1,10 @@
 import logging
-from asyncio import Queue, Task
+from asyncio import Queue, Task, create_task, TaskGroup
 from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
 
 logger = logging.getLogger(__name__)
+
 
 class ServiceWorker:
     def __init__(self,
@@ -24,6 +25,17 @@ class ServiceWorker:
         self._create_callback = None
         self._received_message_awaitable_callback = None
         self._actives_ids: dict = dict()
+        self.tasks = None
+
+    # def __await__(self):
+    #     if self.tasks is None:
+    #         return
+    #     yield from self.__await()
+    #
+    # async def __await(self):
+    #     for task in self.tasks:
+    #         await task
+    #     return
 
     def __setattr__(self, key, value):
         if not isinstance(key, self._user_type):
@@ -36,6 +48,19 @@ class ServiceWorker:
             return
         else:
             raise KeyError(f"{self._name}: uid:{key.uid} didn't find in active_uid.")
+
+    def run(self):
+        # coroutine task
+        self.tasks = [create_task(self.__send_task(), name="send_task"),
+                      create_task(self.__receive_task(), name="receive_task")]
+
+    def is_running(self):
+        if self.tasks is None:
+            return False
+        for task in self.tasks:
+            if task.done():
+                return False
+        return True
 
     async def __send_task(self):
         while True:
