@@ -19,15 +19,14 @@ class Chatbox:
                  set_message_type=Message,
                  debug=False):
         """
-        **** 全て文字列で管理 ****
 
         Args:
-            name:
-            s1_name:
-            s2_name:
-            set_user_type:
-            set_message_type:
-            debug:
+            name: SQLのファイル名に使用されます．また，複数のChatBoxを持つ場合は，識別子として使用できます．ユニークである必要があります．
+            s1_name: 1つ目のサービスの識別に利用できます．
+            s2_name: 2つ目のサービスの識別に利用できます．s1_name と重複してはいけません．
+            set_user_type: 固有のUser型を定義し，永続化できます．このクラスプロパティにはいくつかの制限があります．defaultはChatClientです．
+            set_message_type:メッセージの型を定義できます．defaultはMessageです．
+            debug: Trueの場合，SQLiteのファイルは生成されません．
         """
         self._name = name
         self._uid = uuid4()
@@ -82,7 +81,8 @@ class Chatbox:
         else:
             raise TypeError(f"get_uid_from_service_id: doesn't match the type {type(sent_by)} of `sent_by`")
         return uid
-    async def new_access_from_service1(self, service1_id, create_client_if_no_exist=True):
+
+    async def __new_access_from_service1(self, service1_id, create_client_if_no_exist=True) -> ChatClient:
         sent_by = SentBy.s1
 
         # get uid from service1_id
@@ -93,7 +93,7 @@ class Chatbox:
         client: ChatClient = await self.__new_access_processing(sent_by, uid)
         return client
 
-    async def new_access_from_service2(self, service2_id, create_client_if_no_exist=True):
+    async def __new_access_from_service2(self, service2_id, create_client_if_no_exist=True) -> ChatClient:
         sent_by = SentBy.s2
 
         # get uid from service1_id
