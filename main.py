@@ -5,12 +5,18 @@ from random import randint
 from uuid import uuid4, UUID
 import logging
 
-from chatbox50 import Chatbox
+from chatbox50 import Chatbox, ServiceWorker, ChatClient
 from discord_server import DiscordServer
 NAME = "sample"
-server_queue = asyncio.Queue()
+cb = Chatbox(name=NAME,
+             s1_name="FastAPI",
+             s2_name="DiscordServer",
+             s1_id_type=UUID,
+             s2_id_type=int,
+             debug=True)
+gateway_for_fastapi: ServiceWorker = cb.get_worker1()
+gateway_for_discord: ServiceWorker = cb.get_worker2()
 ds = DiscordServer()
-cb = Chatbox(NAME, server_queue, )
 app = FastAPI(title=NAME)
 logger = logging.getLogger(__name__)
 
@@ -31,16 +37,11 @@ def main_js():
     return FileResponse("main.js", filename="main" + str(randint(0, 1000000)) + ".js")
 
 
-@app.websocket("/ws", name=NAME)  # TODO: UUIDをつける
-async def websocket_endpoint(ws: WebSocket):
+@app.websocket("/ws/{uid}")  # TODO: UUIDをつける
+async def websocket_endpoint(ws: WebSocket, uid: UUID):
     # TODO: Authentication
-    uid = uuid4()  # TODO
-    client_queue = asyncio.Queue()
     logger.info(f"ws_endpoint: {str(uid)}")
-    if uid:
-        pass
-    cb.subscribe(uid, send_queue)
-    # 認証が完了すると，chatbox50が認識できる識別IDと，メッセージを受け取るQueueをもらう.
+    gateway_for_fastapi.access_new_client(uid)
     await ws.accept()
     ws_messenger_task = asyncio.create_task(ws_messenger(ws, send_queue, uid))
     await ws_messenger_task
