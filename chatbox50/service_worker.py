@@ -1,7 +1,9 @@
+import asyncio
 import logging
 from asyncio import Queue, Task, create_task, TaskGroup
 from uuid import UUID, uuid4
 
+from chatbox50._utils import run_as_await_func
 from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
 
@@ -12,24 +14,20 @@ class ServiceWorker:
     def __init__(self,
                  name: str,
                  service_number: SentBy,
-                 set_message_type,
-                 set_user_type,
                  set_id_type,
                  upload_que: Queue,
                  new_access_callback_to_cb: callable,
                  ):
         self._name = name
         self.__service_number = service_number
-        self._msg_type = set_message_type
-        self._user_type = set_user_type
         self._id_type = set_id_type  # Noneが入る可能性があります．
         self.__upload_que = upload_que
         self.__new_access_callback_to_cb = new_access_callback_to_cb
-        self._rv_que: Queue[set_message_type] = Queue()
-        self._sd_que: Queue[set_message_type] = Queue()
+        self._rv_que: Queue[Message] = Queue()
+        self._sd_que: Queue[Message] = Queue()
         self._access_callback = None
         self._create_callback = None
-        self._received_message_awaitable_callback = None
+        self._received_message_callback = None
         self._active_ids: dict = dict()
         self.tasks = None
 
@@ -44,10 +42,10 @@ class ServiceWorker:
     #     return
 
     def __setattr__(self, key, value):
-        if not isinstance(key, self._user_type):
-            raise TypeError(f"key must be `{type(self._user_type)}` not `{type(key)}`")
-        if not isinstance(value, self._msg_type):
-            raise TypeError(f"value must be `{type(self._msg_type)}` not `{type(value)}`")
+        if not isinstance(key, ChatClient):
+            raise TypeError(f"key must be `ChatClient` not `{type(key)}`")
+        if not isinstance(value, Message):
+            raise TypeError(f"value must be `Message` not `{type(value)}`")
 
         if key in self._active_ids:
             self._sd_que.put_nowait(value)
@@ -84,14 +82,7 @@ class ServiceWorker:
             if client is not None:
                 # If the client is active.
                 client.add_message(msg)
-                if self._received_message_awaitable_callback is None:
-                    logger.info(f"the callback that called when the {self._name} service worker received message "
-                                f"doesn't set."
-                                f"That's why the process was skipped. "
-                                f"If you want to solve it, set using `set_received_message_callback`")
-                    continue
-                await self._received_message_awaitable_callback(msg)
-                continue
+                await run_as_await_func(self._received_message_callback, msg)
             else:
                 # TODO:If the client isn't active,
                 pass
@@ -141,8 +132,8 @@ class ServiceWorker:
         """
         self._create_callback = callback
 
-    def set_received_message_callback(self, awaitable_callback: callable):
-        self._received_message_awaitable_callback = awaitable_callback
+    def set_received_message_callback(self, callback: callable):
+        self._received_message_callback = callback
 
     def access_new_client(self, service_id=None, create_client_if_no_exist=True):
         """
@@ -168,10 +159,10 @@ class ServiceWorker:
             else:
                 raise TypeError(f"{self._name}.access_new_client: service_id must be `{type(self._id_type)}` not `"
                                 f"{type(service_id)}`")
-        cc: ChatClient = self.__new_access_callback_to_cb(service_id, create_client_if_no_exist=create_client_if_no_exist)
+        cc: ChatClient = self.__new_access_callback_to_cb(service_id,
+                                                          create_client_if_no_exist=create_client_if_no_exist)
         self.__active_client(service_id, cc)
         return service_id
-
 
     def __active_client(self, service_id, chat_client: ChatClient):
         self._active_ids[service_id] = chat_client
