@@ -43,7 +43,7 @@ class ServiceWorker:
         if not isinstance(value, self._msg_type):
             raise TypeError(f"value must be `{type(self._msg_type)}` not `{type(value)}`")
 
-        if key in self._actives_ids:
+        if key in self._active_ids:
             self._sd_que.put_nowait(value)
             return
         else:
@@ -74,7 +74,7 @@ class ServiceWorker:
                 raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
                                 f"but the message is also sent by the same service.\n"
                                 f"content: {msg.content}\n created at: {msg.created_at}")
-            client: ChatClient = self._actives_ids.get(msg.client_id)
+            client: ChatClient = self._active_ids.get(msg.client_id)
             if client is not None:
                 # If the client is active.
                 client.add_message(msg)
@@ -116,11 +116,59 @@ class ServiceWorker:
     def send_queue(self):
         return self._sd_que
 
-    def set_access_callback(self, callback: callable):
+    def set_accessed_callback(self, callback: callable):
+        """
+
+        Args:
+            callback: 第1引数には，service_idが渡されます．型は，id_typeでセットされた型です．
+
+        Returns:
+
+        """
         self._access_callback = callback
 
-    def set_create_callback(self, callback: callable):
+    def set_created_callback(self, callback: callable):
+        """
+
+        Args:
+            callback: コールバックは，必ずservice_idと同じ型を返す必要があります．
+        """
         self._create_callback = callback
 
     def set_received_message_callback(self, awaitable_callback: callable):
         self._received_message_awaitable_callback = awaitable_callback
+
+    def access_new_client(self, service_id=None, create_client_if_no_exist=True):
+        """
+
+        Args:
+            service_id: ChatBox.s?_id_typeが設定されている場合は同じ型かつユニークである必要があります．
+                        設定されていないかつ，Noneの場合はUUIDが自動で生成されます．
+            create_client_if_no_exist:
+                True: データベースに同じIDが見つからなかった場合，新規作成します．
+                False: エラーログを出力し，None を返します．
+
+        Returns:
+
+        """
+        if service_id is None:
+            if self._id_type is None:
+                service_id = uuid4()
+            else:
+                raise TypeError(f"{self._name}.access_new_client: service_id must be `{type(self._id_type)}` not None")
+        else:
+            if isinstance(service_id, self._id_type):
+                pass
+            else:
+                raise TypeError(f"{self._name}.access_new_client: service_id must be `{type(self._id_type)}` not `"
+                                f"{type(service_id)}`")
+        cc: ChatClient = self.__new_access_callback_to_cb(service_id, create_client_if_no_exist=create_client_if_no_exist)
+        self.__active_client(service_id, cc)
+        return service_id
+
+
+    def __active_client(self, service_id, chat_client: ChatClient):
+        self._active_ids[service_id] = chat_client
+
+    def deactivate_client(self, uid: UUID):
+        del self._active_ids[uid]
