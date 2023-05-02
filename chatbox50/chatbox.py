@@ -14,6 +14,8 @@ class Chatbox:
                  name: str = "chatbox50",
                  s1_name: str = "server_1",
                  s2_name: str = "server_2",
+                 s1_id_type=None,
+                 s2_id_type=None,
                  # デフォルトのQueueに追加されるメッセージの型を指定します
                  set_user_type=ChatClient,
                  set_message_type=Message,
@@ -32,18 +34,14 @@ class Chatbox:
         self._uid = uuid4()
         self._s1_que = Queue()
         self._s2_que = Queue()
-        self._service1 = ServiceWorker(name=s1_name,
-                                       set_user_type=set_user_type,
-                                       set_message_type=set_message_type,
-                                       set_service_number=SentBy.s1,
-                                       upload_que=self._s1_que
-                                       )
-        self._service2 = ServiceWorker(name=s2_name,
-                                       set_user_type=set_user_type,
-                                       set_message_type=set_message_type,
-                                       set_service_number=SentBy.s2,
-                                       upload_que=self._s2_que
-                                       )
+
+        self._service1 = ServiceWorker(name=s1_name, service_number=SentBy.s1, set_message_type=set_message_type,
+                                       set_user_type=set_user_type, set_id_type=s1_id_type, upload_que=self._s1_que,
+                                       new_access_callback_to_cb=self.__new_access_from_service1)
+        self._service2 = ServiceWorker(name=s2_name, service_number=SentBy.s2, set_message_type=set_message_type,
+                                       set_user_type=set_user_type, set_id_type=s2_id_type, upload_que=self._s2_que,
+                                       new_access_callback_to_cb=self.__new_access_from_service2)
+        self.__db = SQLSession(file_name=self._name, init=True, debug=debug)
 
     @property
     def name(self):
@@ -130,12 +128,8 @@ class Chatbox:
         self._active_server_ids[client.server_id] = client
         return client.client_id
 
-    def create_exist_client(self, client_id):
-        cc: ChatClient = self._active_client_ids.get(client_id)
-        if cc is None:
-            cc = ChatClient(self.session, client_id, cc)
-        return cc
+    def get_worker1(self) -> ServiceWorker:
+        return self._service1
 
-    def deactivate_client(self, uid: UUID):
-        self._active_client_ids[uid].commit_to_db()
-        del self._active_client_ids[uid]
+    def get_worker2(self) -> ServiceWorker:
+        return self._service2
