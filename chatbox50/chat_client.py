@@ -13,12 +13,12 @@ class ChatClient:
                  messages=None,
                  ):
         if messages is None:
-            self.__messages = []
+            self._messages = []
         else:
             self.__messages: list[Message] = messages
-        self.message_callback = None
         self._s1_id = None
         self._s2_id = None
+        self.__another_property = dict()
         self.__msg_num = 0
         if uid is None:
             self.__uid = uuid4()
@@ -26,6 +26,12 @@ class ChatClient:
             self.__uid = uid
         else:
             raise AttributeError(f"the type of `uid` must be `UUID` or unique `str` not `{type(uid)}`")
+
+    def __setitem__(self, key, value):
+        self.__another_property[key] = value
+
+    def __getitem__(self, item):
+        return self.__another_property[item]
 
     @property
     def uid(self):
@@ -39,7 +45,5 @@ class ChatClient:
     def s2_id(self):
         return self._s2_id
 
-
-
     def add_message(self, message):
-        self.__messages.append(message)
+        self._messages.append(message)
