@@ -1,5 +1,7 @@
 import logging
 from asyncio import Queue, Task, create_task, TaskGroup
+from uuid import UUID, uuid4
+
 from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
 
@@ -9,22 +11,26 @@ logger = logging.getLogger(__name__)
 class ServiceWorker:
     def __init__(self,
                  name: str,
-                 set_service_number: SentBy,
+                 service_number: SentBy,
                  set_message_type,
                  set_user_type,
-                 upload_que: Queue
+                 set_id_type,
+                 upload_que: Queue,
+                 new_access_callback_to_cb: callable,
                  ):
         self._name = name
-        self.__service_number = set_service_number
+        self.__service_number = service_number
         self._msg_type = set_message_type
         self._user_type = set_user_type
+        self._id_type = set_id_type  # Noneが入る可能性があります．
         self.__upload_que = upload_que
+        self.__new_access_callback_to_cb = new_access_callback_to_cb
         self._rv_que: Queue[set_message_type] = Queue()
         self._sd_que: Queue[set_message_type] = Queue()
         self._access_callback = None
         self._create_callback = None
         self._received_message_awaitable_callback = None
-        self._actives_ids: dict = dict()
+        self._active_ids: dict = dict()
         self.tasks = None
 
     # def __await__(self):
