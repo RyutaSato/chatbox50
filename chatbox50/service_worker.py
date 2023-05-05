@@ -25,10 +25,12 @@ class ServiceWorker:
         self.__new_access_callback_to_cb = new_access_callback_to_cb
         self._rv_que: Queue[Message] = Queue()
         self._sd_que: Queue[Message] = Queue()
+        self._receive_msg_que: Queue[Message] = Queue()
         self._access_callback = None
         self._create_callback = None
         self._received_message_callback = None
         self._active_ids: dict[UUID | str | int, ChatClient] = dict()
+        self._queue_dict: dict[UUID | str | int, Queue] = dict() # TODO: 実装予定
         self.tasks = None
 
     # def __await__(self):
@@ -78,7 +80,7 @@ class ServiceWorker:
                 raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
                                 f"but the message is also sent by the same service.\n"
                                 f"content: {msg.content}\n created at: {msg.created_at}")
-            client: ChatClient = self._active_ids.get(msg.client_id)
+            client: ChatClient = self._active_ids.get(msg.get_id(self.__service_number))
             if client is not None:
                 # If the client is active.
                 client.add_message(msg)
@@ -104,14 +106,18 @@ class ServiceWorker:
         #     # if key is server_id
         #     msg = Message(cc.client_id, SentBy.server, value)
         #     cc.queue.put_nowait()
+    #
+    # @property
+    # def receive_queue(self):
+    #     return self._rv_que
+    #
+    # @property
+    # def send_queue(self):
+    #     return self._sd_que
 
     @property
-    def receive_queue(self):
-        return self._rv_que
-
-    @property
-    def send_queue(self):
-        return self._sd_que
+    def receive_queue(self) -> Queue[Message]:
+        return self._receive_msg_que
 
     def set_accessed_callback(self, callback: callable):
         """
@@ -135,7 +141,7 @@ class ServiceWorker:
     def set_received_message_callback(self, callback: callable):
         self._received_message_callback = callback
 
-    def access_new_client(self, service_id=None, create_client_if_no_exist=True):
+    def access_new_client(self, service_id=None, create_client_if_no_exist=True) -> UUID | str | int:
         """
 
         Args:
