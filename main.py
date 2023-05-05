@@ -42,6 +42,7 @@ async def websocket_endpoint(ws: WebSocket, uid: UUID):
     # TODO: Authentication
     logger.info(f"ws_endpoint: {str(uid)}")
     gateway_for_fastapi.access_new_client(uid)
+    send_queue = asyncio.Queue()
     await ws.accept()
     ws_messenger_task = asyncio.create_task(ws_messenger(ws, send_queue, uid))
     await ws_messenger_task
@@ -66,9 +67,10 @@ async def _ws_sender(ws: WebSocket, queue: asyncio.Queue):
 
     """
     while True:
-        msg = await queue.get()
-        logger.debug(f"sender: {msg}")
-        await ws.send_json({"auther": "you", "content": msg})
+        msg: Message = await queue.get()
+        logger.debug(f"sent by: {msg.sent_by.name}, content: {msg.content}")
+        auther = "you" if msg.sent_by == SentBy.s1 else "receptionist"
+        await ws.send_json({"auther": auther, "content": msg.content})
 
 
 async def _ws_receiver(ws: WebSocket, uid: UUID):
@@ -81,7 +83,7 @@ async def _ws_receiver(ws: WebSocket, uid: UUID):
     Returns:
 
     """
+    msg_receiver = gateway_for_fastapi.get_msg_receiver(uid)
     while True:
         msg: str = await ws.receive_text()
-
-        cb[uid] = msg
+        await msg_receiver(msg)
