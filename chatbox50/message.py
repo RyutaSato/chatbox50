@@ -41,6 +41,14 @@ class Message:
     def service2_id(self):
         return self.__chat_client.s2_id
 
+    def get_id(self, sent_by: SentBy):
+        if sent_by == SentBy.s1:
+            return self.service1_id
+        elif sent_by == SentBy.s2:
+            return self.service2_id
+        else:
+            raise AttributeError()
+
 
 if __name__ == '__main__':
     a = SentBy.s1
