@@ -28,7 +28,7 @@ class ServiceWorker:
         self._access_callback = None
         self._create_callback = None
         self._received_message_callback = None
-        self._active_ids: dict = dict()
+        self._active_ids: dict[UUID | str | int, ChatClient] = dict()
         self.tasks = None
 
     # def __await__(self):
@@ -167,5 +167,13 @@ class ServiceWorker:
     def __active_client(self, service_id, chat_client: ChatClient):
         self._active_ids[service_id] = chat_client
 
-    def deactivate_client(self, uid: UUID):
-        del self._active_ids[uid]
+    def deactivate_client(self, service_id: UUID):
+        del self._active_ids[service_id]
+
+    def get_msg_receiver(self, service_id):
+        async def msg_receiver(content: str):
+            client = self._active_ids.get(service_id)
+            msg = Message(client, self.__service_number, content)
+            await self.send_queue.put(msg)
+
+        return msg_receiver
