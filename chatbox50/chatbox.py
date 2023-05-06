@@ -16,9 +16,6 @@ class Chatbox:
                  s2_name: str = "server_2",
                  s1_id_type=None,
                  s2_id_type=None,
-                 # デフォルトのQueueに追加されるメッセージの型を指定します
-                 set_user_type=ChatClient,
-                 set_message_type=Message,
                  debug=False):
         """
 
@@ -26,8 +23,6 @@ class Chatbox:
             name: SQLのファイル名に使用されます．また，複数のChatBoxを持つ場合は，識別子として使用できます．ユニークである必要があります．
             s1_name: 1つ目のサービスの識別に利用できます．
             s2_name: 2つ目のサービスの識別に利用できます．s1_name と重複してはいけません．
-            set_user_type: 固有のUser型を定義し，永続化できます．このクラスプロパティにはいくつかの制限があります．defaultはChatClientです．
-            set_message_type:メッセージの型を定義できます．defaultはMessageです．
             debug: Trueの場合，SQLiteのファイルは生成されません．
         """
         self._name = name
@@ -35,11 +30,9 @@ class Chatbox:
         self._s1_que = Queue()
         self._s2_que = Queue()
 
-        self._service1 = ServiceWorker(name=s1_name, service_number=SentBy.s1, set_message_type=set_message_type,
-                                       set_user_type=set_user_type, set_id_type=s1_id_type, upload_que=self._s1_que,
+        self._service1 = ServiceWorker(name=s1_name, service_number=SentBy.s1, set_id_type=s1_id_type, upload_que=self._s1_que,
                                        new_access_callback_to_cb=self.__new_access_from_service1)
-        self._service2 = ServiceWorker(name=s2_name, service_number=SentBy.s2, set_message_type=set_message_type,
-                                       set_user_type=set_user_type, set_id_type=s2_id_type, upload_que=self._s2_que,
+        self._service2 = ServiceWorker(name=s2_name, service_number=SentBy.s2, set_id_type=s2_id_type, upload_que=self._s2_que,
                                        new_access_callback_to_cb=self.__new_access_from_service2)
         self.__db = SQLSession(file_name=self._name, init=True, debug=debug)
 
@@ -73,9 +66,9 @@ class Chatbox:
     def get_uid_from_service_id(self, sent_by: SentBy, service_id) -> UUID:
         # service_id は型が決まっていない．全て，DBにアクセスする際は，str型にする
         if sent_by == SentBy.s1:
-            uid: UUID | None = self._service1._get_uid_from_service_id(service_id)
+            uid: UUID | None = self._service1.get_uid_from_service_id(service_id)
         elif sent_by == SentBy.s2:
-            uid: UUID | None = self._service2._get_uid_from_service_id(service_id)
+            uid: UUID | None = self._service2.get_uid_from_service_id(service_id)
         else:
             raise TypeError(f"get_uid_from_service_id: doesn't match the type {type(sent_by)} of `sent_by`")
         return uid
@@ -96,14 +89,17 @@ class Chatbox:
 
         # get uid from service1_id
         uid: UUID | None = self.get_uid_from_service_id(sent_by, service2_id)
+        if not create_client_if_no_exist:
+            pass
 
         client: ChatClient = await self.__new_access_processing(sent_by, uid)
         return client
 
-    async def __new_access_processing(self, sent_by: SentBy, uid):
-        #
+    async def __new_access_processing(self, sent_by: SentBy, uid) -> ChatClient:
+        # このクラスは，ServiceWorkerから呼ばれる．
+        # TODO
         # ChatClientを作成する．
-
+        cc = ChatClient(uid, )
         # ChatClientインスタンスに，メッセージ可能なコールバックを含める
 
         # ChatClientを返す
