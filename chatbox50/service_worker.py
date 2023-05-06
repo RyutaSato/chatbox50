@@ -76,10 +76,11 @@ class ServiceWorker:
     async def __receive_task(self):
         while True:
             msg: Message = await self._rv_que.get()
-            if msg.sent_by == self.__service_number:
-                raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
-                                f"but the message is also sent by the same service.\n"
-                                f"content: {msg.content}\n created at: {msg.created_at}")
+            # ** it's not error
+            # if msg.sent_by == self.__service_number:
+            #     raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
+            #                     f"but the message is also sent by the same service.\n"
+            #                     f"content: {msg.content}\n created at: {msg.created_at}")
             client: ChatClient = self._active_ids.get(msg.get_id(self.__service_number))
             if client is not None:
                 # If the client is active.
@@ -167,6 +168,7 @@ class ServiceWorker:
                                 f"{type(service_id)}`")
         cc: ChatClient = self.__new_access_callback_to_cb(service_id,
                                                           create_client_if_no_exist=create_client_if_no_exist)
+        self._queue_dict[service_id] = Queue()
         self.__active_client(service_id, cc)
         return service_id
 
@@ -180,6 +182,15 @@ class ServiceWorker:
         async def msg_receiver(content: str):
             client = self._active_ids.get(service_id)
             msg = Message(client, self.__service_number, content)
-            await self.send_queue.put(msg)
+            await self._sd_que.put(msg)
 
         return msg_receiver
+
+    def get_uid_from_service_id(self, service_id) -> UUID | None:
+        cc = self._active_ids.get(service_id)
+        if cc is None:
+            return None
+        return cc.uid
+
+    def get_client_queue(self, service_id) -> Queue | None:
+        return self._queue_dict.get(service_id)
