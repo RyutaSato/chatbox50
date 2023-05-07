@@ -1,4 +1,5 @@
 import asyncio
+import pickle
 from uuid import UUID, uuid4
 from chatbox50.db_session import SQLSession
 from chatbox50.message import Message
@@ -12,16 +13,12 @@ class ChatClient:
                  uid: UUID | None = None,
                  s1_id: UUID | str | int | None = None,
                  s2_id: UUID | str | int | None = None,
-                 messages=None,
                  ):
-        if messages is None:
-            self._messages = []
-        else:
-            self.__messages: list[Message] = messages
+        self.__messages: list[Message] = []
         self._s1_id = s1_id
         self._s2_id = s2_id
         self.__another_property = dict()
-        self.__msg_num = 0
+        self.number_of_saved_messages = 0
         if uid is None:
             self.__uid = uuid4()
         elif isinstance(uid, UUID):
@@ -51,6 +48,27 @@ class ChatClient:
     def items(self):
         return self.__another_property
 
+    @property
+    def unsaved_messages(self) -> list[Message]:
+        return self.__messages[self.number_of_saved_messages:]
+
     def add_message(self, message):
-        self._messages.append(message)
+        if isinstance(message, Message) and message.uid == self.__uid:
+            self.__messages.append(message)
+        else:
+            raise AttributeError()
+
+    def set_s1_id(self, service_id):
+        if self._s1_id is not None:
+            logger.warning("service1_id is already set. You are trying to overwrite it.")
+        self._s1_id = service_id
+
+    def set_s2_id(self, service_id):
+        if self._s2_id is not None:
+            logger.warning("service2_id is already set. You are trying to overwrite it.")
+        self._s2_id = service_id
+
+    def pickle_properties(self) -> bytes:
+        return pickle.dumps(self.__another_property)
+
 
