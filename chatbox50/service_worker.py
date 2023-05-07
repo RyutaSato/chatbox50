@@ -188,16 +188,27 @@ class ServiceWorker:
     def __active_client(self, service_id, chat_client: ChatClient):
         self._active_ids[service_id] = chat_client
 
-    def deactivate_client(self, service_id: UUID):
-        del self._active_ids[service_id]
+    def deactivate_client(self, service_id: UUID | str | int, called_by_chat_box=False):
+        cc = self._active_ids.pop(service_id)
+        self._queue_dict.pop(service_id)
+        if not called_by_chat_box:
+            self.__deactivate_callback(cc, self.__service_number)
 
-    def get_msg_receiver(self, service_id):
-        async def msg_receiver(content: str):
+    def get_msg_sender(self, service_id) -> callable:
+        """
+        get message receiver function which is available to send str message to chatbox.
+        Args:
+            service_id:
+
+        Returns:
+
+        """
+        async def _msg_sender(content: str):
             client = self._active_ids.get(service_id)
             msg = Message(client, self.__service_number, content)
             await self._sd_que.put(msg)
 
-        return msg_receiver
+        return _msg_sender
 
     def get_uid_from_service_id(self, service_id) -> UUID | None:
         cc = self._active_ids.get(service_id)
