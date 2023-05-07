@@ -3,14 +3,18 @@ import logging
 from uuid import UUID
 from datetime import datetime
 
-from chatbox50 import Message, SentBy
+from chatbox50.message import Message, SentBy
+from chatbox50.chat_client import ChatClient
 
 logger = logging.getLogger("session")
+DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
 class SQLSession:
-    def __init__(self, file_name, init=False, debug=False):
+    def __init__(self, file_name, s1_id_type, s2_id_type, init=False, debug=False):
         # if debug mode is True, sqlite works in memory.
+        self._s1_id_type = s1_id_type
+        self._s2_id_type = s2_id_type
         if debug:
             self.file_name = ":memory:"
         self.__conn = sqlite3.connect(file_name)
@@ -22,76 +26,149 @@ class SQLSession:
         cur.execute(sql, parameter)
         return cur.fetchall()
 
-    def add_new_client(self, client_id, server_id):
+    def add_new_client(self, cc: ChatClient):
+        """
+
+        Args:
+            cc:
+        """
         cur = self.__conn.cursor()
-        cur.execute("INSERT INTO user (client_id, server_id) VALUES (?, ?)", (str(client_id), str(server_id)))
+        cur.execute(
+            "INSERT INTO client (uid, service1_id, service2_id, properties) VALUES (?, ?, ?, ?)",
+            (str(cc.uid), str(cc.s1_id), str(cc.s2_id), cc.pickle_properties())
+        )
         self.__conn.commit()
 
-    def get_server_id(self, client_id):
-        cur = self.__conn.cursor()
-        cur.execute("SELECT server_id FROM user")
-        return cur.fetchone()
+    def get_chat_client(self, sent_by: SentBy, service_id) -> None | ChatClient:
+        """
+        ** COMPLETED **
+        Args:
+            sent_by:
+            service_id:
 
-    def get_client_uid(self):  #未修正
-        cur = self.__conn.cursor()
-        cur.execute("SELECT uid FROM client")
-        return set(map(lambda x: UUID(x[0]), cur.fetchall()))
+        Returns:
 
-    def get_user_id_from_client_id(self, client_id) -> str | None:
+        """
         cur = self.__conn.cursor()
-        cur.execute("SELECT id FROM user WHERE client_id=?", (str(client_id),))
-        client_id = cur.fetchone()
-        if client_id is None:
-            logger.info(f"can't find uid: {client_id} from DB")
-            return None
-        return client_id[0]
-
-    def commit_messages(self, client_id, messages: list[Message]):
-        user_id = self.get_user_id_from_client_id(client_id)
-        if user_id is None:
-            logger.info(f"can't add messages due not to find user")
-            return
+        if sent_by == SentBy.s1:
+            cur.execute("SELECT uid, service1_id, service2_id, properties FROM client WHERE service1_id = ?",
+                        (service_id,))
+        elif sent_by == SentBy.s2:
+            cur.execute("SELECT id, uid, service1_id, service2_id, properties FROM client WHERE service2_id = ?",
+                        (service_id,))
+        else:
+            raise AttributeError()
+        client = cur.fetchone()
+        client_id: str = client[0]
+        cc: ChatClient = ChatClient(uid=UUID(client[1]), s1_id=self._s1_id_type(client[2]), s2_id=self._s2_id_type(
+            client[3]))
         cur = self.__conn.cursor()
-        cur.executemany("INSERT INTO history (user_id, created_at, content, sent_by) VALUES (?, ?, ?, ?)",
-                        [(client_id, str(message.created_at), message.content, message.sent_by) for message in messages])
-        self.__conn.commit()
-
-    def get_history_from_client_id(self, client_id):
-        histories: list[Message] = []
-        user_id = self.get_user_id_from_client_id(client_id)
-        if user_id is None:
-            return None
-        cur = self.__conn.cursor()
-        cur.execute("SELECT content, created_at, sent_by FROM history WHERE history.user_id=?", (user_id,))
+        cur.execute("SELECT sent_by, content, created_at FROM history WHERE client_id=?", (client_id,))
+        message_count = 0
         for row in cur.fetchall():
-            histories.append(Message(client_id=client_id,
-                                     content=row[0],
-                                     created_at=datetime.strptime(row[1], "%Y-%m-%d %H:%M:%S.%f"),
-                                     sent_by=SentBy(row[2])))
-        return histories
+            cc.add_message(Message(chat_client=cc, sent_by=SentBy(int(row[0])), content=row[1],
+                                   created_at=datetime.strptime(row[2], DATETIME_FORMAT)))
+            message_count += 1
+        cc.number_of_saved_messages = message_count
+        return cc
+
+    def _get_client_id_from_uid(self, uid: UUID) -> str | None:
+        cur = self.__conn.cursor()
+        cur.execute("SELECT id FROM client WHERE uid=?", (str(uid),))
+        client_id = cur.fetchone()[0]
+        if client_id is None:
+            logger.error(f"_get_client_id_from_uid: can't find uid: {client_id} from DB")
+            return None
+        return client_id
+
+    def commit_messages(self, messages: list[Message]) -> bool:
+        """
+        メッセージは随時DBに保存するように変更します．この関数は使いません．
+        ** DEPRECATED **
+        ** COMPLETED **
+        Args:
+            messages:
+
+        Returns: bool
+
+        """
+        client_id = self._get_client_id_from_uid(messages[0].uid)
+        if client_id is None:
+            logger.info(f"commit_messages: can't add messages due not to find client_id")
+            return False
+        cur = self.__conn.cursor()
+        cur.executemany("INSERT INTO history (client_id, created_at, content, sent_by) VALUES (?, ?, ?, ?)",
+                        [(client_id,
+                          str(message.created_at.strftime(DATETIME_FORMAT)),
+                          message.content,
+                          message.sent_by) for message in messages])
+        self.__conn.commit()
+        return True
+
+    def commit_message(self, message: Message) -> bool:
+        """
+        ** COMPLETED **
+        Args:
+            message:
+
+        Returns:
+
+        """
+        client_id = self._get_client_id_from_uid(message.uid)
+        if client_id is None:
+            logger.info(f"commit_messages: can't add messages due not to find client_id")
+            return False
+        cur = self.__conn.cursor()
+        cur.execute("INSERT INTO history (client_id, created_at, content, sent_by) VALUES (?, ?, ?, ?)",
+                    (client_id,
+                     str(message.created_at.strftime(DATETIME_FORMAT)),
+                     message.content,
+                     message.sent_by))
+        self.__conn.commit()
+        return True
+
+    def get_history_from_uid(self, cc: ChatClient):
+        """
+        ** COMPLETED **
+        Args:
+            cc:
+
+        Returns:
+
+        """
+        client_id = self._get_client_id_from_uid(cc.uid)
+        if client_id is None:
+            logger.info("get_history_from_uid: can't get history die not to find client_id")
+            return None
+        cur = self.__conn.cursor()
+        cur.execute("SELECT content, created_at, sent_by FROM history WHERE history.client_id=?", (client_id,))
+        for row in cur.fetchall():
+            cc.add_message(Message(chat_client=cc,
+                                   content=row[0],
+                                   created_at=datetime.strptime(row[1], DATETIME_FORMAT),
+                                   sent_by=SentBy(row[2])))
+        return None
 
     def __init_db(self):
         cur = self.__conn.cursor()
         self.__conn.execute("PRAGMA foreign_keys = ON")
-        cur.execute("CREATE TABLE IF NOT EXISTS user("
+        cur.execute("CREATE TABLE IF NOT EXISTS client("
                     "id         INTEGER PRIMARY KEY AUTOINCREMENT, "
                     "created_at TEXT DEFAULT CURRENT_TIMESTAMP,"
-                    "client_id  VARCHAR(40) NOT NULL,"
-                    "server_id  VARCHAR(40) NOT NULL)")
+                    "uid    VARCHAR(127) NOT NULL,"
+                    "service1_id  VARCHAR(127) NOT NULL,"
+                    "service2_id  VARCHAR(127) NOT NULL,"
+                    "properties   BLOB NOT NULL)")
         cur.execute("CREATE TABLE IF NOT EXISTS history("
                     "id         INTEGER PRIMARY KEY AUTOINCREMENT, "
-                    "created_at TEXT DEFAULT CURRENT_TIMESTAMP,"
-                    "user_id  INTEGER NOT NULL, "
+                    "created_at TEXT,"
+                    "client_id  INTEGER NOT NULL, "
                     "content    TEXT NOT NULL,"
                     "sent_by    INTEGER NOT NULL,"  # 0:client 1:server
-                    "FOREIGN KEY (user_id) REFERENCES user(id))")
+                    "FOREIGN KEY (client_id) REFERENCES client(id))")
         cur.close()
         return
 
     def __del__(self):
         self.__conn.commit()
         self.__conn.close()
-
-
-if __name__ == '__main__':
-    session = SQLSession('', init=True, debug=True)
