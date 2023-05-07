@@ -1,26 +1,26 @@
 import asyncio
+import os
+
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from random import randint
 from uuid import uuid4, UUID
 import logging
 
-from chatbox50 import Chatbox, SentBy, ServiceWorker, ChatClient, Message
+from chatbox50 import ChatBox, SentBy, ServiceWorker, ChatClient, Message
 from discord_server import DiscordServer
 from fastapi_utils import get_message_classificator_and_message_callback
-
+TOKEN = os.getenv("DISCORD_TOKEN")
 NAME = "sample"
-cb = Chatbox(name=NAME,
+cb = ChatBox(name=NAME,
              s1_name="FastAPI",
              s2_name="DiscordServer",
              s1_id_type=UUID,
              s2_id_type=int,
              debug=True)
-gateway_for_fastapi: ServiceWorker = cb.get_worker1()
-gateway_for_discord: ServiceWorker = cb.get_worker2()
-message_classificator, message_callback = get_message_classificator_and_message_callback()
-gateway_for_fastapi.set_received_message_callback(message_callback)
-ds = DiscordServer()
+web_api: ServiceWorker = cb.get_worker1
+discord_api: ServiceWorker = cb.get_worker2
+ds = DiscordServer(send_queue=discord_api.send_queue, receive_queue=discord_api.receive_queue)
 app = FastAPI(title=NAME)
 logger = logging.getLogger(__name__)
 
@@ -45,12 +45,12 @@ def main_js():
 async def websocket_endpoint(ws: WebSocket, uid: UUID):
     # TODO: Authentication
     logger.info(f"ws_endpoint: {str(uid)}")
-    gateway_for_fastapi.access_new_client(uid)
-    send_queue = asyncio.Queue()  # TODO Queue()をworkerから取得できるようにする
-    send_queue: asyncio.Queue = gateway_for_fastapi.get_client_que(uid)
+    web_api.access_new_client(uid)
     await ws.accept()
+    send_queue: asyncio.Queue = web_api.get_client_queue(uid)
     ws_messenger_task = asyncio.create_task(ws_messenger(ws, send_queue, uid))
     await ws_messenger_task
+    web_api.deactivate_client(uid)
 
 
 async def ws_messenger(ws: WebSocket, send_queue: asyncio.Queue, uid: UUID):
@@ -88,7 +88,10 @@ async def _ws_receiver(ws: WebSocket, uid: UUID):
     Returns:
 
     """
-    msg_receiver = gateway_for_fastapi.get_msg_receiver(uid)
+    msg_receiver = web_api.get_msg_sender(uid)
     while True:
         msg: str = await ws.receive_text()
         await msg_receiver(msg)
+
+cb.run()
+ds.run(TOKEN)
