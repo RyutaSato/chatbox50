@@ -10,14 +10,16 @@ logger = logging.getLogger("client")
 class ChatClient:
     def __init__(self,
                  uid: UUID | None = None,
+                 s1_id: UUID | str | int | None = None,
+                 s2_id: UUID | str | int | None = None,
                  messages=None,
                  ):
         if messages is None:
             self._messages = []
         else:
             self.__messages: list[Message] = messages
-        self._s1_id = None
-        self._s2_id = None
+        self._s1_id = s1_id
+        self._s2_id = s2_id
         self.__another_property = dict()
         self.__msg_num = 0
         if uid is None:
@@ -45,5 +47,10 @@ class ChatClient:
     def s2_id(self):
         return self._s2_id
 
+    @property
+    def items(self):
+        return self.__another_property
+
     def add_message(self, message):
         self._messages.append(message)
+

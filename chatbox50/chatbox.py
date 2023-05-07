@@ -66,9 +66,9 @@ class Chatbox:
     def get_uid_from_service_id(self, sent_by: SentBy, service_id) -> UUID:
         # service_id は型が決まっていない．全て，DBにアクセスする際は，str型にする
         if sent_by == SentBy.s1:
-            uid: UUID | None = self._service1._get_uid_from_service_id(service_id)
+            uid: UUID | None = self._service1.get_uid_from_service_id(service_id)
         elif sent_by == SentBy.s2:
-            uid: UUID | None = self._service2._get_uid_from_service_id(service_id)
+            uid: UUID | None = self._service2.get_uid_from_service_id(service_id)
         else:
             raise TypeError(f"get_uid_from_service_id: doesn't match the type {type(sent_by)} of `sent_by`")
         return uid
@@ -89,14 +89,17 @@ class Chatbox:
 
         # get uid from service1_id
         uid: UUID | None = self.get_uid_from_service_id(sent_by, service2_id)
+        if not create_client_if_no_exist:
+            pass
 
         client: ChatClient = await self.__new_access_processing(sent_by, uid)
         return client
 
-    async def __new_access_processing(self, sent_by: SentBy, uid):
-        #
+    async def __new_access_processing(self, sent_by: SentBy, uid) -> ChatClient:
+        # このクラスは，ServiceWorkerから呼ばれる．
+        # TODO
         # ChatClientを作成する．
-
+        cc = ChatClient(uid, )
         # ChatClientインスタンスに，メッセージ可能なコールバックを含める
 
         # ChatClientを返す

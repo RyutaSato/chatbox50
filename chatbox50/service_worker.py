@@ -25,10 +25,12 @@ class ServiceWorker:
         self.__new_access_callback_to_cb = new_access_callback_to_cb
         self._rv_que: Queue[Message] = Queue()
         self._sd_que: Queue[Message] = Queue()
+        self._receive_msg_que: Queue[Message] = Queue()
         self._access_callback = None
         self._create_callback = None
         self._received_message_callback = None
-        self._active_ids: dict = dict()
+        self._active_ids: dict[UUID | str | int, ChatClient] = dict()
+        self._queue_dict: dict[UUID | str | int, Queue] = dict() # TODO: 実装予定
         self.tasks = None
 
     # def __await__(self):
@@ -74,11 +76,12 @@ class ServiceWorker:
     async def __receive_task(self):
         while True:
             msg: Message = await self._rv_que.get()
-            if msg.sent_by == self.__service_number:
-                raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
-                                f"but the message is also sent by the same service.\n"
-                                f"content: {msg.content}\n created at: {msg.created_at}")
-            client: ChatClient = self._active_ids.get(msg.client_id)
+            # ** it's not error
+            # if msg.sent_by == self.__service_number:
+            #     raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
+            #                     f"but the message is also sent by the same service.\n"
+            #                     f"content: {msg.content}\n created at: {msg.created_at}")
+            client: ChatClient = self._active_ids.get(msg.get_id(self.__service_number))
             if client is not None:
                 # If the client is active.
                 client.add_message(msg)
@@ -104,14 +107,18 @@ class ServiceWorker:
         #     # if key is server_id
         #     msg = Message(cc.client_id, SentBy.server, value)
         #     cc.queue.put_nowait()
+    #
+    # @property
+    # def receive_queue(self):
+    #     return self._rv_que
+    #
+    # @property
+    # def send_queue(self):
+    #     return self._sd_que
 
     @property
-    def receive_queue(self):
-        return self._rv_que
-
-    @property
-    def send_queue(self):
-        return self._sd_que
+    def receive_queue(self) -> Queue[Message]:
+        return self._receive_msg_que
 
     def set_accessed_callback(self, callback: callable):
         """
@@ -135,7 +142,7 @@ class ServiceWorker:
     def set_received_message_callback(self, callback: callable):
         self._received_message_callback = callback
 
-    def access_new_client(self, service_id=None, create_client_if_no_exist=True):
+    def access_new_client(self, service_id=None, create_client_if_no_exist=True) -> UUID | str | int:
         """
 
         Args:
@@ -161,11 +168,29 @@ class ServiceWorker:
                                 f"{type(service_id)}`")
         cc: ChatClient = self.__new_access_callback_to_cb(service_id,
                                                           create_client_if_no_exist=create_client_if_no_exist)
+        self._queue_dict[service_id] = Queue()
         self.__active_client(service_id, cc)
         return service_id
 
     def __active_client(self, service_id, chat_client: ChatClient):
         self._active_ids[service_id] = chat_client
 
-    def deactivate_client(self, uid: UUID):
-        del self._active_ids[uid]
+    def deactivate_client(self, service_id: UUID):
+        del self._active_ids[service_id]
+
+    def get_msg_receiver(self, service_id):
+        async def msg_receiver(content: str):
+            client = self._active_ids.get(service_id)
+            msg = Message(client, self.__service_number, content)
+            await self._sd_que.put(msg)
+
+        return msg_receiver
+
+    def get_uid_from_service_id(self, service_id) -> UUID | None:
+        cc = self._active_ids.get(service_id)
+        if cc is None:
+            return None
+        return cc.uid
+
+    def get_client_queue(self, service_id) -> Queue | None:
+        return self._queue_dict.get(service_id)
