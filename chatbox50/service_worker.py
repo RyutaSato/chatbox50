@@ -32,7 +32,7 @@ class ServiceWorker:
         self._create_callback = None
         self._received_message_callback = None
         self._active_ids: dict[UUID | str | int, ChatClient] = dict()
-        self._queue_dict: dict[UUID | str | int, Queue] = dict() # TODO: 実装予定
+        self._queue_dict: dict[UUID | str | int, Queue] = dict()
         self.tasks = None
 
     # def __await__(self):
@@ -88,6 +88,9 @@ class ServiceWorker:
                 # If the client is active.
                 client.add_message(msg)
                 await run_as_await_func(self._received_message_callback, msg)
+                client_queue: Queue = self._queue_dict.get(msg.get_id(self.__service_number))
+                await client_queue.put(msg)
+                await self._receive_msg_que.put(msg)
             else:
                 # TODO:If the client isn't active,
                 pass
@@ -122,16 +125,24 @@ class ServiceWorker:
     def receive_queue(self) -> Queue[Message]:
         return self._receive_msg_que
 
-    def set_accessed_callback(self, callback: callable):
+    @property
+    def send_queue(self) -> Queue[Message]:
+        return self._sd_que
+
+    @property
+    def new_access_callback_from_other_worker(self):
+        return self._new_access_callback
+
+    def set_new_access_callback(self, callback: callable):
         """
 
         Args:
-            callback: 第1引数には，service_idが渡されます．型は，id_typeでセットされた型です．
+            callback: this callback doesn't have any arguments. it must return this new service id.
 
         Returns:
 
         """
-        self._access_callback = callback
+        self._new_access_callback = callback
 
     def set_created_callback(self, callback: callable):
         """
