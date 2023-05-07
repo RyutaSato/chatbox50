@@ -25,8 +25,9 @@ Chatbox50は，特に次のようなケースを想定しています．
 
 
 #### HOW TO USE
+
 ```python
-from chatbox50 import Chatbox
+from chatbox50 import ChatBox
 from asyncio import Queue
 from server import Server  # For example
 
@@ -35,7 +36,7 @@ send_que = Queue()
 
 server = Server(receive_que, send_que)
 
-cb = Chatbox(
+cb = ChatBox(
     name="sample",
     server_send_que=send_que,
     server_receive_que=receive_que,
