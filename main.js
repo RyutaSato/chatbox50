@@ -1,13 +1,20 @@
 
 function addChatMessage(auther, body) {
-    let list = document.getElementById('chat-list');
+    let list = document.getElementById('chat');
     let item = document.createElement('li');
     item.innerHTML = "<b>" + auther + "</b>: " + body;
     list.appendChild(item);
 }
 document.addEventListener('DOMContentLoaded', function (event) {
-    let socket = new WebSocket('ws://127.0.0.1:8000/ws');
+    addChatMessage('system', 'getting cookie...');
+    const uid = document.cookie
+      .split('; ')
+      .find(row => row.startsWith('uid'))
+      .split('=')[1];
+    addChatMessage('system', 'got uid:' + uid + " from cookie.");
     addChatMessage('system', 'connecting...');
+    let socket = new WebSocket('ws://127.0.0.1:8000/ws/' + uid);
+    addChatMessage('system', 'waiting for server response...');
     socket.onopen = function (event) {
         addChatMessage('system', 'connection successes!!');
     }
@@ -18,14 +25,14 @@ document.addEventListener('DOMContentLoaded', function (event) {
         addChatMessage('system', 'disconnected');
     }
     socket.onmessage = function (event) {
-        console.log(event.data);
         let msg = JSON.parse(event.data);
         addChatMessage(msg.auther, msg.content);
     }
-
-    document.getElementById('send').addEventListener('click', function () {
-        let text = document.getElementById('chat');
+    let send_button = document.getElementById('send');
+    send_button.addEventListener('click', function () {
+        let text = document.getElementById('send-message');
         socket.send(text.value);
-        document.getElementById('send').value = ""; // form clear
+        console.log(typeof(text))
+        text.value = ""; // form clear
     });
 });

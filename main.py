@@ -1,16 +1,26 @@
 import asyncio
+import os
+
 from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, Request
 from fastapi.responses import FileResponse, HTMLResponse
 from random import randint
 from uuid import uuid4, UUID
 import logging
 
-from chatbox50 import Chatbox
+from chatbox50 import ChatBox, SentBy, ServiceWorker, ChatClient, Message
 from discord_server import DiscordServer
+from fastapi_utils import get_message_classificator_and_message_callback
+TOKEN = os.getenv("DISCORD_TOKEN")
 NAME = "sample"
-server_queue = asyncio.Queue()
-ds = DiscordServer()
-cb = Chatbox(NAME, server_queue, )
+cb = ChatBox(name=NAME,
+             s1_name="FastAPI",
+             s2_name="DiscordServer",
+             s1_id_type=UUID,
+             s2_id_type=int,
+             debug=True)
+web_api: ServiceWorker = cb.get_worker1
+discord_api: ServiceWorker = cb.get_worker2
+ds = DiscordServer(send_queue=discord_api.send_queue, receive_queue=discord_api.receive_queue)
 app = FastAPI(title=NAME)
 logger = logging.getLogger(__name__)
 
@@ -31,19 +41,16 @@ def main_js():
     return FileResponse("main.js", filename="main" + str(randint(0, 1000000)) + ".js")
 
 
-@app.websocket("/ws", name=NAME)  # TODO: UUIDをつける
-async def websocket_endpoint(ws: WebSocket):
+@app.websocket("/ws/{uid}")
+async def websocket_endpoint(ws: WebSocket, uid: UUID):
     # TODO: Authentication
-    uid = uuid4()  # TODO
-    client_queue = asyncio.Queue()
     logger.info(f"ws_endpoint: {str(uid)}")
-    if uid:
-        pass
-    cb.subscribe(uid, send_queue)
-    # 認証が完了すると，chatbox50が認識できる識別IDと，メッセージを受け取るQueueをもらう.
+    web_api.access_new_client(uid)
     await ws.accept()
+    send_queue: asyncio.Queue = web_api.get_client_queue(uid)
     ws_messenger_task = asyncio.create_task(ws_messenger(ws, send_queue, uid))
     await ws_messenger_task
+    web_api.deactivate_client(uid)
 
 
 async def ws_messenger(ws: WebSocket, send_queue: asyncio.Queue, uid: UUID):
@@ -65,9 +72,10 @@ async def _ws_sender(ws: WebSocket, queue: asyncio.Queue):
 
     """
     while True:
-        msg = await queue.get()
-        logger.debug(f"sender: {msg}")
-        await ws.send_json({"auther": "you", "content": msg})
+        msg: Message = await queue.get()
+        logger.debug(f"sent by: {msg.sent_by.name}, content: {msg.content}")
+        auther = "you" if msg.sent_by == SentBy.s1 else "receptionist"
+        await ws.send_json({"auther": auther, "content": msg.content})
 
 
 async def _ws_receiver(ws: WebSocket, uid: UUID):
@@ -80,7 +88,10 @@ async def _ws_receiver(ws: WebSocket, uid: UUID):
     Returns:
 
     """
+    msg_receiver = web_api.get_msg_sender(uid)
     while True:
         msg: str = await ws.receive_text()
+        await msg_receiver(msg)
 
-        cb[uid] = msg
+cb.run()
+ds.run(TOKEN)

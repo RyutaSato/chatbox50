@@ -18,11 +18,12 @@ set uid as `{}`
 
 
 class DiscordServer(Client):
-    def __init__(self, send_queue: asyncio.Queue, receive_queue: asyncio.Queue, *, intents: Intents = Intents.all(),
+    def __init__(self, api: chatbox50.ServiceWorker, *, intents: Intents = Intents.all(),
                  **options: typing.Any):
         super().__init__(intents=intents, **options)
-        self.server_send_que = send_queue
-        self.server_receive_que = receive_queue
+        self._api = api
+        self._api.set_created_callback(self.__create_thread_callback)
+        self._api.set_received_message_callback(self.__received_message_callback)
         self.channel: ForumChannel | None = None
         self._forum_chatbox_id: dict[int, UUID] = dict()  # dict[ForumChannel.id, Chatbox.uid]
         # self.channels: dict[int, ForumChannel] = dict()  # dict[ForumChannel.id, ForumChannel]
@@ -32,9 +33,9 @@ class DiscordServer(Client):
         # ignore a message sent by this bot.
         if message.author == self.user:
             return
-        if message.channel.id == self.channel.id:
-            msg = chatbox50.Message(message.channel.name, chatbox50.SentBy.server, message.content)
-            await self.server_send_que.put(msg)
+        if message.channel.parent_id == self.channel.id:
+            msg_sender = self._api.get_msg_sender(message.channel.id)
+            await msg_sender(message.content)
             print(message.guild, message.channel, message.type, type(message), type(message.channel))
 
     # async def on_guild_join(self, guild: Guild):  # Event Callback
@@ -42,15 +43,17 @@ class DiscordServer(Client):
     #     new_forum = await guild.create_forum("chatbox50")
     #     self.subscribe_forum_and_chatbox(new_forum, new_chat_box)
 
-        # forum.create_thread()
-    async def create_thread_callback(self, client: chatbox50.ChatClient):
+    # forum.create_thread()
+    async def __create_thread_callback(self, *args) -> int:
+        thread, _ = await self.channel.create_thread(name=str(args[0]))
+        self.threads[thread.id] = thread
+        return thread.id
 
-        # ** このコールバックをchatboxに登録する．
-        # threadを作成する
-        # self.threadsに登録する.
-        #
-
-        pass
+    async def __received_message_callback(self, message: chatbox50.Message):
+        if message.sent_by == chatbox50.SentBy.s2:
+            return
+        thread: Thread = self.threads.get(message.service2_id)
+        await thread.send(message.content)
 
     async def on_ready(self):  # Event Callback
         async for guild in self.fetch_guilds():
@@ -62,17 +65,3 @@ class DiscordServer(Client):
                 for thread in self.channel.threads:
                     self.threads[thread.id] = thread
                 break
-
-    async def send_message_task(self):
-        while True:
-            msg: chatbox50.Message = await self.server_receive_que.get()
-            self.channel.threads
-
-
-
-
-if __name__ == '__main__':
-    server = DiscordServer()
-    TOKEN = os.getenv("DISCORD_TOKEN")
-    print(TOKEN)
-    server.run(TOKEN)
