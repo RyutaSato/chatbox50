@@ -16,17 +16,19 @@ class ServiceWorker:
                  service_number: SentBy,
                  set_id_type,
                  upload_que: Queue,
-                 new_access_callback_to_cb: callable,
+                 new_access_callback: callable,
+                 deactivate_callback: callable,
                  ):
         self._name = name
         self.__service_number = service_number
         self._id_type = set_id_type  # Noneが入る可能性があります．
         self.__upload_que = upload_que
-        self.__new_access_callback_to_cb = new_access_callback_to_cb
+        self.__new_access_callback_to_cb = new_access_callback
+        self.__deactivate_callback = deactivate_callback
         self._rv_que: Queue[Message] = Queue()
         self._sd_que: Queue[Message] = Queue()
         self._receive_msg_que: Queue[Message] = Queue()
-        self._access_callback = None
+        self._new_access_callback = None
         self._create_callback = None
         self._received_message_callback = None
         self._active_ids: dict[UUID | str | int, ChatClient] = dict()
