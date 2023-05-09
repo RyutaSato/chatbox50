@@ -1,3 +1,4 @@
+import asyncio
 from asyncio import Queue, create_task
 from uuid import UUID, uuid4
 
@@ -81,13 +82,13 @@ class ChatBox:
             raise TypeError(f"get_uid_from_service_id: doesn't match the type {type(sent_by)} of `sent_by`")
         return uid
 
-    def __new_access_from_service1(self, service1_id, create_client_if_no_exist=True,
-                                   queue_in_previous_message=False) -> ChatClient:
+    async def __new_access_from_service1(self, service1_id, create_client_if_no_exist=True,
+                                         queue_in_previous_message=False) -> ChatClient:
         sent_by = SentBy.s1
         cc = await self.__new_access_processing(sent_by, service1_id, create_client_if_no_exist)
         return cc
 
-    def __new_access_from_service2(self, service2_id, create_client_if_no_exist=True) -> ChatClient:
+    async def __new_access_from_service2(self, service2_id, create_client_if_no_exist=True) -> ChatClient:
         sent_by = SentBy.s2
         cc = await self.__new_access_processing(sent_by, service2_id, create_client_if_no_exist)
         return cc
@@ -97,7 +98,7 @@ class ChatBox:
         cc: ChatClient | None = self.__db.get_chat_client(sent_by, service_id)
         if cc is None and create_client_if_no_exist:
             cc = await self.create_new_client(sent_by, service_id)
-
+        await asyncio.sleep(0)
         return cc
 
     def __deactivate_processing(self, cc: ChatClient, sent_by: SentBy):
@@ -106,7 +107,7 @@ class ChatBox:
         if sent_by == SentBy.s2:
             self._service1.deactivate_client(cc.s1_id, True)
 
-    async def __message_broker(self):
+    def __message_broker(self):
         self.__task_broker1 = create_task(self.__broker_service1())
         self.__task_broker2 = create_task(self.__broker_service2())
 
