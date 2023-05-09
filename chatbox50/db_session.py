@@ -16,7 +16,7 @@ class SQLSession:
         self._s1_id_type = s1_id_type
         self._s2_id_type = s2_id_type
         if debug:
-            self.file_name = ":memory:"
+            file_name = ":memory:"
         self.__conn = sqlite3.connect(file_name)
         if init:
             self.__init_db()
