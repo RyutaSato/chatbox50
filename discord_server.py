@@ -59,3 +59,14 @@ class DiscordServer(Client):
                 for thread in self.channel.threads:
                     self.threads[thread.id] = thread
                 break
+
+
+if __name__ == '__main__':
+    import os
+    from chatbox50 import ChatBox
+    TOKEN = os.getenv("DISCORD_TOKEN")
+    print(TOKEN)
+    NAME = "sample"
+    cb = ChatBox(name=NAME, debug=True)
+    ds = DiscordServer(cb.get_worker2)
+    ds.run(TOKEN)
