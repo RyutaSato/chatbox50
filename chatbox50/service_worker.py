@@ -35,17 +35,7 @@ class ServiceWorker:
         self._queue_dict: dict[UUID | str | int, Queue] = dict()
         self.tasks = None
 
-    # def __await__(self):
-    #     if self.tasks is None:
-    #         return
-    #     yield from self.__await()
-    #
-    # async def __await(self):
-    #     for task in self.tasks:
-    #         await task
-    #     return
-
-    def __setattr__(self, key, value):
+    def __setitem__(self, key, value):
         if not isinstance(key, ChatClient):
             raise TypeError(f"key must be `ChatClient` not `{type(key)}`")
         if not isinstance(value, Message):
@@ -94,32 +84,6 @@ class ServiceWorker:
             else:
                 # TODO:If the client isn't active,
                 pass
-
-        # client: ChatClient = self._actives_ids.get(key.uid)
-        # if client is None:
-        #     raise KeyError(f"{self._name}: uid:{key.uid} didn't find in active_uid.")
-        # self.
-
-        # cc: ChatClient | None = self._active_client_ids.get(key)
-        # # if key is client_id
-        # if cc is ChatClient:
-        #     msg = Message(cc.client_id, SentBy.client, value)
-        #     self._server_send_queue.put_nowait(msg)
-        # else:
-        #     cc: ChatClient | None = self._active_server_ids.get(key)
-        #     if cc is None:
-        #         raise KeyError(f"key must be active client_id or server_id")
-        #     # if key is server_id
-        #     msg = Message(cc.client_id, SentBy.server, value)
-        #     cc.queue.put_nowait()
-    #
-    # @property
-    # def receive_queue(self):
-    #     return self._rv_que
-    #
-    # @property
-    # def send_queue(self):
-    #     return self._sd_que
 
     @property
     def receive_queue(self) -> Queue[Message]:
