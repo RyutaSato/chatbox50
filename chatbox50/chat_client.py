@@ -1,7 +1,5 @@
-import asyncio
 import pickle
 from uuid import UUID, uuid4
-from chatbox50.db_session import SQLSession
 from chatbox50.message import Message
 import logging
 
