@@ -33,7 +33,7 @@ class DiscordServer(Client):
         # ignore a message sent by this bot.
         if message.author == self.user:
             return
-        if message.channel.parent_id == self.channel.id:
+        if isinstance(message.channel, Thread) and message.channel.parent_id == self.channel.id:
             msg_sender = self._api.get_msg_sender(message.channel.id)
             await msg_sender(message.content)
             print(message.guild, message.channel, message.type, type(message), type(message.channel))
