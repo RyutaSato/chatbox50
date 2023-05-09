@@ -9,9 +9,9 @@ import logging
 
 from chatbox50 import ChatBox, SentBy, ServiceWorker, ChatClient, Message
 from discord_server import DiscordServer
-from fastapi_utils import get_message_classificator_and_message_callback
+logging.basicConfig(level=logging.DEBUG)
 TOKEN = os.getenv("DISCORD_TOKEN")
-NAME = "sample"
+NAME = "chatbox50"
 cb = ChatBox(name=NAME,
              s1_name="FastAPI",
              s2_name="DiscordServer",
@@ -19,13 +19,10 @@ cb = ChatBox(name=NAME,
              s2_id_type=int,
              debug=True)
 web_api: ServiceWorker = cb.get_worker1
-discord_api: ServiceWorker = cb.get_worker2
-ds = DiscordServer(send_queue=discord_api.send_queue, receive_queue=discord_api.receive_queue)
 app = FastAPI(title=NAME)
+discord_api: ServiceWorker = cb.get_worker2
+ds = DiscordServer(api=discord_api)
 logger = logging.getLogger(__name__)
-
-
-# ds = DiscordServer()
 
 @app.get("/")
 def root(request: Request):
@@ -93,5 +90,8 @@ async def _ws_receiver(ws: WebSocket, uid: UUID):
         msg: str = await ws.receive_text()
         await msg_receiver(msg)
 
-cb.run()
-ds.run(TOKEN)
+from concurrent.futures import ThreadPoolExecutor
+with ThreadPoolExecutor() as executor:
+    cb_thread = executor.submit(cb.blocking_run)
+    ds_thread = executor.submit(ds.run, TOKEN, root_logger=True)
+    cb_thread.result()
