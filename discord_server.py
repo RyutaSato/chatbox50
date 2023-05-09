@@ -9,7 +9,7 @@ from discord import (
 import typing
 
 import chatbox50
-
+discord.VoiceClient.warn_nacl = False
 FORUM_TEMPLATE = """
 this is checkbox50.
 set uid as `{}`
@@ -38,12 +38,6 @@ class DiscordServer(Client):
             await msg_sender(message.content)
             print(message.guild, message.channel, message.type, type(message), type(message.channel))
 
-    # async def on_guild_join(self, guild: Guild):  # Event Callback
-    #     new_chat_box = Chatbox(guild.name)
-    #     new_forum = await guild.create_forum("chatbox50")
-    #     self.subscribe_forum_and_chatbox(new_forum, new_chat_box)
-
-    # forum.create_thread()
     async def __create_thread_callback(self, *args) -> int:
         thread, _ = await self.channel.create_thread(name=str(args[0]))
         self.threads[thread.id] = thread
