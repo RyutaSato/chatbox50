@@ -7,7 +7,9 @@ from discord import (
     Client, Intents, Message, Guild, ForumChannel, Thread
 )
 import typing
+import logging
 
+logger = logging.getLogger(__name__)
 import chatbox50
 discord.VoiceClient.warn_nacl = False
 FORUM_TEMPLATE = """
@@ -33,13 +35,13 @@ class DiscordServer(Client):
         # ignore a message sent by this bot.
         if message.author == self.user:
             return
+        logger.debug(f"received: from:{message.author} content: {message.content}")
         if isinstance(message.channel, Thread) and message.channel.parent_id == self.channel.id:
             msg_sender = self._api.get_msg_sender(message.channel.id)
             await msg_sender(message.content)
-            print(message.guild, message.channel, message.type, type(message), type(message.channel))
 
-    async def __create_thread_callback(self, *args) -> int:
-        thread, _ = await self.channel.create_thread(name=str(args[0]))
+    async def __create_thread_callback(self, name: str, *args) -> int:
+        thread, _ = await self.channel.create_thread(name=name)
         self.threads[thread.id] = thread
         return thread.id
 
@@ -50,20 +52,31 @@ class DiscordServer(Client):
         await thread.send(message.content)
 
     async def on_ready(self):  # Event Callback
+        logger.debug("Discord server setup...")
         async for guild in self.fetch_guilds():
-            # channel = discord.utils.get(self.get_all_channels(), name="chatbox50")
-            # self.channel_id = channel.id
-            channel = discord.utils.get(guild.channels, name="chatbox50")
-            if isinstance(channel, ForumChannel):
-                self.channel = channel
-                for thread in self.channel.threads:
-                    self.threads[thread.id] = thread
-                break
+            channels = await guild.fetch_channels()
+            for channel in channels:
+                if isinstance(channel, ForumChannel) and channel.name == "chatbox50":
+                    logger.debug(f"Found Forum channel id: {channel.id} {channel}")
+                    self.channel = channel
+                    for thread in self.channel.threads:
+                        logger.debug(f"Found thread : {thread.name} {thread.id}")
+                        self.threads[thread.id] = thread
+                    break
+
+        if self.channel is None:
+            raise RuntimeError("can't find chatbox50 ForumChannel")
+        else:
+            logger.info("setup completed.")
+            logger.info(f"ChatBox50 forum channel is {self.channel.id}")
+            logger.info(f"there are already threads, {self.channel.threads}")
 
 
 if __name__ == '__main__':
     import os
     from chatbox50 import ChatBox
+
+    logging.basicConfig(level=logging.DEBUG)
     TOKEN = os.getenv("DISCORD_TOKEN")
     print(TOKEN)
     NAME = "sample"
