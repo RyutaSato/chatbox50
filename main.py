@@ -9,23 +9,29 @@ import logging
 
 from chatbox50 import ChatBox, SentBy, ServiceWorker, ChatClient, Message
 from discord_server import DiscordServer
-logging.basicConfig(level=logging.DEBUG)
+
+debug = True
+if debug:
+    logging.basicConfig(level=logging.DEBUG)
 TOKEN = os.getenv("DISCORD_TOKEN")
+if TOKEN is None:
+    raise TypeError("TOKEN doesn't find")
 NAME = "chatbox50"
 cb = ChatBox(name=NAME,
              s1_name="FastAPI",
              s2_name="DiscordServer",
              s1_id_type=UUID,
              s2_id_type=int,
-             debug=True)
+             debug=debug)
 web_api: ServiceWorker = cb.get_worker1
 app = FastAPI(title=NAME)
 discord_api: ServiceWorker = cb.get_worker2
 ds = DiscordServer(api=discord_api)
 logger = logging.getLogger(__name__)
 
+
 @app.get("/")
-def root(request: Request):
+async def root(request: Request):
     token = request.cookies.get("token")
     file_response = FileResponse("index.html")
     if token is None:
@@ -34,8 +40,8 @@ def root(request: Request):
 
 
 @app.get("/main.js")
-def main_js():
-    return FileResponse("main.js", filename="main" + str(randint(0, 1000000)) + ".js")
+async def main_js():
+    return FileResponse("main.js")
 
 
 @app.websocket("/ws/{uid}")
@@ -88,10 +94,9 @@ async def _ws_receiver(ws: WebSocket, uid: UUID):
     msg_receiver = web_api.get_msg_sender(uid)
     while True:
         msg: str = await ws.receive_text()
+        logger.debug(f"uid: {uid} received: {msg}")
         await msg_receiver(msg)
 
-from concurrent.futures import ThreadPoolExecutor
-with ThreadPoolExecutor() as executor:
-    cb_thread = executor.submit(cb.blocking_run)
-    ds_thread = executor.submit(ds.run, TOKEN, root_logger=True)
-    cb_thread.result()
+
+cb.run()
+asyncio.create_task(ds.start(TOKEN))
