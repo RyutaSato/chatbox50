@@ -23,10 +23,17 @@ class ChatBox:
         """
 
         Args:
-            name: SQLのファイル名に使用されます．また，複数のChatBoxを持つ場合は，識別子として使用できます．ユニークである必要があります．
-            s1_name: 1つ目のサービスの識別に利用できます．
-            s2_name: 2つ目のサービスの識別に利用できます．s1_name と重複してはいけません．
-            debug: Trueの場合，SQLiteのファイルは生成されません．
+             name: Used for SQL file name. Also, if you have multiple ChatBoxes, you can use it as an identifier.
+             Must be unique.
+             s1_name: Can be used to identify the first service.
+             s2_name: Can be used to identify the second service. Must not overlap with s1_name.
+             debug: If True, SQLite files are not generated.
+        Warnings:
+            ChatBox50 is multi-threaded and runs in the same event loop as the main function.
+            If you want to run in multiple processes, create an event loop in each process.
+            Add the event loop to the `loop` argument of ChatBox50. `Queue` is not shared.
+            As a way to solve that problem,
+            you can connect `multiprocessing.Queue` with `Queue` of `chatbox50.ServiceWorker`.
         """
         self._name = name
         self._uid = uuid4()
