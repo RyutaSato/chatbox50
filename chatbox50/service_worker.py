@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from asyncio import Queue, Task, create_task, TaskGroup
+from typing import Any, Callable, Coroutine
 from uuid import UUID, uuid4
 
 from chatbox50._utils import run_as_await_func
@@ -158,7 +159,7 @@ class ServiceWorker:
         if not called_by_chat_box:
             self.__deactivate_callback(cc, self.__service_number)
 
-    def get_msg_sender(self, service_id) -> callable:
+    def get_msg_sender(self, service_id) -> Callable[[str], Coroutine[Any, Any, None]]:
         """
         get message receiver function which is available to send str message to chatbox.
         Args:
@@ -167,6 +168,7 @@ class ServiceWorker:
         Returns:
 
         """
+
         async def _msg_sender(content: str):
             client = self._active_ids.get(service_id)
             msg = Message(client, self.__service_number, content)
