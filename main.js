@@ -1,19 +1,19 @@
 
 function addChatMessage(auther, body) {
-    let list = document.getElementById('chat');
+    let list = document.getElementById('chat-list');
     let item = document.createElement('li');
     item.innerHTML = "<b>" + auther + "</b>: " + body;
     list.appendChild(item);
 }
 document.addEventListener('DOMContentLoaded', function (event) {
     addChatMessage('system', 'getting cookie...');
-    const uid = document.cookie
-      .split('; ')
-      .find(row => row.startsWith('uid'))
-      .split('=')[1];
-    addChatMessage('system', 'got uid:' + uid + " from cookie.");
+    const token = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('token'))
+        .split('=')[1];
+    addChatMessage('system', 'got uid:' + token + " from cookie.");
     addChatMessage('system', 'connecting...');
-    let socket = new WebSocket('ws://127.0.0.1:8000/ws/' + uid);
+    let socket = new WebSocket('ws://127.0.0.1:8000/ws/' + token);
     addChatMessage('system', 'waiting for server response...');
     socket.onopen = function (event) {
         addChatMessage('system', 'connection successes!!');
@@ -30,9 +30,9 @@ document.addEventListener('DOMContentLoaded', function (event) {
     }
     let send_button = document.getElementById('send');
     send_button.addEventListener('click', function () {
-        let text = document.getElementById('send-message');
+        let text = document.getElementById('chat');
         socket.send(text.value);
-        console.log(typeof(text))
+        console.log(text.value);
         text.value = ""; // form clear
     });
 });
