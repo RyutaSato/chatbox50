@@ -4,6 +4,8 @@ from uuid import UUID
 from typing import Type, TypeVar
 
 logger = logging.getLogger(__name__)
+ImmutableType = Type[int | str | UUID | complex | tuple | bytes]
+Immutable = TypeVar("Immutable", int, str, UUID, complex, tuple, bytes)
 
 
 async def run_as_await_func(func=None, *args, raise_error=False, **kwargs):
@@ -32,4 +34,11 @@ async def run_as_await_func(func=None, *args, raise_error=False, **kwargs):
     if asyncio.iscoroutinefunction(func):
         return await func(*args, **kwargs)
     else:
-        await asyncio.to_thread(func, *args, **kwargs)
+        return await asyncio.to_thread(func, *args, **kwargs)
+
+
+def str_converter(value: Immutable):
+    if value is UUID:
+        return str(value.hex)
+    else:
+        return str(value)
