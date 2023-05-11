@@ -48,7 +48,7 @@ async def main_js():
 async def websocket_endpoint(ws: WebSocket, uid: UUID):
     # TODO: Authentication
     logger.info(f"ws_endpoint: {str(uid)}")
-    web_api.access_new_client(uid)
+    await web_api.access_new_client(uid)
     await ws.accept()
     send_queue: asyncio.Queue = web_api.get_client_queue(uid)
     ws_messenger_task = asyncio.create_task(ws_messenger(ws, send_queue, uid))
