@@ -3,6 +3,7 @@ import logging
 from uuid import UUID
 from datetime import datetime
 
+from chatbox50._utils import Immutable, str_converter
 from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
 
@@ -36,10 +37,11 @@ class SQLSession:
         cur.execute(
             "INSERT INTO client (uid, service1_id, service2_id, properties) VALUES (?, ?, ?, ?)",
             (str(cc.uid), str(cc.s1_id), str(cc.s2_id), cc.pickle_properties())
+            # TODO: chatclient might be updated.
         )
         self.__conn.commit()
 
-    def get_chat_client(self, sent_by: SentBy, service_id) -> None | ChatClient:
+    def get_chat_client(self, sent_by: SentBy, service_id: Immutable) -> None | ChatClient:
         """
         ** COMPLETED **
         Args:
@@ -49,9 +51,10 @@ class SQLSession:
         Returns:
 
         """
+        service_id = str_converter(service_id)
         cur = self.__conn.cursor()
         if sent_by == SentBy.s1:
-            cur.execute("SELECT uid, service1_id, service2_id, properties FROM client WHERE service1_id = ?",
+            cur.execute("SELECT id, uid, service1_id, service2_id, properties FROM client WHERE service1_id = ?",
                         (service_id,))
         elif sent_by == SentBy.s2:
             cur.execute("SELECT id, uid, service1_id, service2_id, properties FROM client WHERE service2_id = ?",
@@ -59,6 +62,8 @@ class SQLSession:
         else:
             raise AttributeError()
         client = cur.fetchone()
+        if client is None:
+            return None
         client_id: str = client[0]
         cc: ChatClient = ChatClient(uid=UUID(client[1]), s1_id=self._s1_id_type(client[2]), s2_id=self._s2_id_type(
             client[3]))
@@ -74,7 +79,7 @@ class SQLSession:
 
     def _get_client_id_from_uid(self, uid: UUID) -> str | None:
         cur = self.__conn.cursor()
-        cur.execute("SELECT id FROM client WHERE uid=?", (str(uid),))
+        cur.execute("SELECT id FROM client WHERE uid=?", (str(uid.hex),))
         client_id = cur.fetchone()[0]
         if client_id is None:
             logger.error(f"_get_client_id_from_uid: can't find uid: {client_id} from DB")
@@ -92,7 +97,7 @@ class SQLSession:
         Returns: bool
 
         """
-        client_id = self._get_client_id_from_uid(messages[0].uid)
+        client_id: str | None = self._get_client_id_from_uid(messages[0].uid)
         if client_id is None:
             logger.info(f"commit_messages: can't add messages due not to find client_id")
             return False
@@ -114,7 +119,7 @@ class SQLSession:
         Returns:
 
         """
-        client_id = self._get_client_id_from_uid(message.uid)
+        client_id: str | None = self._get_client_id_from_uid(message.uid)
         if client_id is None:
             logger.info(f"commit_messages: can't add messages due not to find client_id")
             return False
@@ -136,7 +141,7 @@ class SQLSession:
         Returns:
 
         """
-        client_id = self._get_client_id_from_uid(cc.uid)
+        client_id: str | None = self._get_client_id_from_uid(cc.uid)
         if client_id is None:
             logger.info("get_history_from_uid: can't get history die not to find client_id")
             return None
@@ -146,7 +151,7 @@ class SQLSession:
             cc.add_message(Message(chat_client=cc,
                                    content=row[0],
                                    created_at=datetime.strptime(row[1], DATETIME_FORMAT),
-                                   sent_by=SentBy(row[2])))
+                                   sent_by=SentBy(int(row[2]))))
         return None
 
     def __init_db(self):
