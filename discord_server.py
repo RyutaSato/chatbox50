@@ -24,7 +24,7 @@ class DiscordServer(Client):
                  **options: typing.Any):
         super().__init__(intents=intents, **options)
         self._api = api
-        self._api.set_created_callback(self.__create_thread_callback)
+        self._api.set_create_callback(self.__create_thread_callback)
         self._api.set_received_message_callback(self.__received_message_callback)
         self.channel: ForumChannel | None = None
         self._forum_chatbox_id: dict[int, UUID] = dict()  # dict[ForumChannel.id, Chatbox.uid]
@@ -40,8 +40,8 @@ class DiscordServer(Client):
             msg_sender = self._api.get_msg_sender(message.channel.id)
             await msg_sender(message.content)
 
-    async def __create_thread_callback(self, name: str, *args) -> int:
-        thread, _ = await self.channel.create_thread(name=name)
+    async def __create_thread_callback(self, name: UUID) -> int:
+        thread, _ = await self.channel.create_thread(name=str(name), content="new client access")
         self.threads[thread.id] = thread
         return thread.id
 
