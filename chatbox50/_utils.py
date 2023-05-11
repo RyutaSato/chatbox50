@@ -1,6 +1,7 @@
 import asyncio
 import logging
-import inspect
+from uuid import UUID
+from typing import Type, TypeVar
 
 logger = logging.getLogger(__name__)
 
@@ -19,17 +20,16 @@ async def run_as_await_func(func=None, *args, raise_error=False, **kwargs):
         None
     """
     if func is None:
-        caller = inspect.currentframe().f_back
-        logger.error(f"Called from {caller.f_code.co_filename}, line {caller.f_lineno}, function "
-                     f"{caller.f_code.co_name} doesn't set. the process was skipped")
         if raise_error:
-            raise AttributeError(f"詳細はlogを参照")
+            raise AttributeError(f"Called from {__name__}, the func is None, raise_error: {raise_error}, {str(kwargs)}")
+        await asyncio.sleep(0)
         return
     if not callable(func):
         if raise_error:
             raise AttributeError(f"func must be callable")
+        await asyncio.sleep(0)
         return
     if asyncio.iscoroutinefunction(func):
-        await func(*args, **kwargs)
+        return await func(*args, **kwargs)
     else:
         await asyncio.to_thread(func, *args, **kwargs)
