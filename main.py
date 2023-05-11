@@ -1,16 +1,16 @@
 import asyncio
 import os
 
-from fastapi import FastAPI, Response, WebSocket, WebSocketDisconnect, Request
+from fastapi import FastAPI, WebSocket, Request
 from fastapi.responses import FileResponse, HTMLResponse
-from random import randint
 from uuid import uuid4, UUID
 import logging
 
-from chatbox50 import ChatBox, SentBy, ServiceWorker, ChatClient, Message
+from chatbox50 import ChatBox, SentBy, ServiceWorker, Message
 from discord_server import DiscordServer
 
 debug = True
+logger = logging.getLogger(__name__)
 if debug:
     logging.basicConfig(level=logging.DEBUG)
 TOKEN = os.getenv("DISCORD_TOKEN")
@@ -22,12 +22,12 @@ cb = ChatBox(name=NAME,
              s2_name="DiscordServer",
              s1_id_type=UUID,
              s2_id_type=int,
-             debug=debug)
+             debug=debug,
+             logger=logger)
 web_api: ServiceWorker = cb.get_worker1
 app = FastAPI(title=NAME)
 discord_api: ServiceWorker = cb.get_worker2
 ds = DiscordServer(api=discord_api)
-logger = logging.getLogger(__name__)
 
 
 @app.get("/")
