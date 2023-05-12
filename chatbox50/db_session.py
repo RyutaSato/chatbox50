@@ -12,13 +12,13 @@ DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 
 
 class SQLSession:
-    def __init__(self, file_name, s1_id_type, s2_id_type, init=False, debug=False):
-        # if debug mode is True, sqlite works in memory.
+    def __init__(self, file_name: str, s1_id_type: ImmutableType, s2_id_type: ImmutableType, init: bool = False,
+                 debug: bool = False, logger: logging.Logger = None):
+        self._logger = logger if logger is None else logger.getChild("sql")
         self._s1_id_type = s1_id_type
         self._s2_id_type = s2_id_type
-        if debug:
-            file_name = ":memory:"
-        self.__conn = sqlite3.connect(file_name)
+        # if debug mode is True, sqlite works in memory.
+        self.__conn = sqlite3.connect(file_name + ".db" if not debug else ":memory:")
         if init:
             self.__init_db()
 
@@ -27,16 +27,20 @@ class SQLSession:
         cur.execute(sql, parameter)
         return cur.fetchall()
 
-    def add_new_client(self, cc: ChatClient):
+    def add_new_client(self, cc: ChatClient) -> bool:
         """
 
         Args:
             cc:
         """
+        self._logger.debug({"place": "db_new_client", "action": "insert", "status": "start", "info": cc.__dict__()})
         cur = self.__conn.cursor()
+        str_uid = str_converter(cc.uid)
+        str_s1 = str_converter(cc.s1_id)
+        str_s2 = str_converter(cc.s2_id)
         cur.execute(
             "INSERT INTO client (uid, service1_id, service2_id, properties) VALUES (?, ?, ?, ?)",
-            (str(cc.uid), str(cc.s1_id), str(cc.s2_id), cc.pickle_properties())
+            (str_uid, str_s1, str_s2, cc.pickle_properties())
             # TODO: chatclient might be updated.
         )
         self.__conn.commit()
@@ -61,26 +65,37 @@ class SQLSession:
                         (service_id,))
         else:
             raise AttributeError()
+
         client = cur.fetchone()
         if client is None:
+            log_dict["status"] = "not_found"
+            log_dict["msg"] = "can't find cc from db. returned None"
+            self._logger.debug(json.dumps(log_dict))
             return None
-        client_id: str = client[0]
         cc: ChatClient = ChatClient(uid=UUID(client[1]), s1_id=self._s1_id_type(client[2]), s2_id=self._s2_id_type(
             client[3]))
-        cur = self.__conn.cursor()
-        cur.execute("SELECT sent_by, content, created_at FROM history WHERE client_id=?", (client_id,))
-        message_count = 0
-        for row in cur.fetchall():
-            cc.add_message(Message(chat_client=cc, sent_by=SentBy(int(row[0])), content=row[1],
-                                   created_at=datetime.strptime(row[2], DATETIME_FORMAT)))
-            message_count += 1
-        cc.number_of_saved_messages = message_count
+        log_dict["status"] = "success"
+        log_dict["info"]["result"] = str(client)
+        self._logger.debug(json.dumps(log_dict))
+        self.insert_history_to_chat_client(cc)
+        # client_id: str = client[0]
+        # cur = self.__conn.cursor()
+        # cur.execute("SELECT sent_by, content, created_at FROM history WHERE client_id=?", (client_id,))
+        # message_count = 0
+        # for row in cur.fetchall():
+        #     cc.add_message(Message(chat_client=cc, sent_by=SentBy(int(row[0])), content=row[1],
+        #                            created_at=datetime.strptime(row[2], DATETIME_FORMAT)))
+        #     message_count += 1
+        # cc.number_of_saved_messages = message_count
         return cc
 
+    @cache
     def _get_client_id_from_uid(self, uid: UUID) -> str | None:
+        uid = str_converter(uid)
+        self._logger.debug({"action": "get_client_id_from_uid", "uid": uid})
         cur = self.__conn.cursor()
-        cur.execute("SELECT id FROM client WHERE uid=?", (str(uid.hex),))
-        client_id = cur.fetchone()[0]
+        cur.execute("SELECT id FROM client WHERE uid=?", (uid,))
+        client_id: tuple | None = cur.fetchone()
         if client_id is None:
             logger.error(f"_get_client_id_from_uid: can't find uid: {client_id} from DB")
             return None
@@ -132,7 +147,7 @@ class SQLSession:
         self.__conn.commit()
         return True
 
-    def get_history_from_uid(self, cc: ChatClient):
+    def insert_history_to_chat_client(self, cc: ChatClient) -> bool:
         """
         ** COMPLETED **
         Args:
@@ -147,12 +162,15 @@ class SQLSession:
             return None
         cur = self.__conn.cursor()
         cur.execute("SELECT content, created_at, sent_by FROM history WHERE history.client_id=?", (client_id,))
+        count = 0
         for row in cur.fetchall():
             cc.add_message(Message(chat_client=cc,
                                    content=row[0],
                                    created_at=datetime.strptime(row[1], DATETIME_FORMAT),
                                    sent_by=SentBy(int(row[2]))))
-        return None
+            count += 1
+        cc.number_of_saved_messages = count
+        return True
 
     def __init_db(self):
         cur = self.__conn.cursor()

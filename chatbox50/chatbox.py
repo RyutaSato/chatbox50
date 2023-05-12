@@ -1,4 +1,5 @@
 import asyncio
+import json
 from asyncio import Queue, create_task
 from uuid import UUID, uuid4
 
@@ -21,7 +22,7 @@ class ChatBox:
                  s2_name: str = "server_2",
                  s1_id_type: ImmutableType = UUID,
                  s2_id_type: ImmutableType = UUID,
-                 debug: object = False,
+                 debug: bool = False,
                  logger: logging.Logger = None):
         """
 
@@ -50,7 +51,10 @@ class ChatBox:
         self._s1_id_type = s1_id_type
         self._s2_id_type = s2_id_type
         formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        handler = logging.Handler()
+        if debug:
+            handler = logging.FileHandler("chatbox50.log", mode='w+', encoding="utf-8", )
+        else:
+            handler = logging.NullHandler()
         handler.setFormatter(formatter)
         if logger is None:
             self.logger = logging.getLogger(name)
@@ -59,13 +63,13 @@ class ChatBox:
         self.logger.addHandler(handler)
 
         self._service1 = ServiceWorker(name=s1_name, service_number=SentBy.s1, set_id_type=self._s1_id_type,
-                                       upload_que=self._s1_que, new_access_callback=self.__new_access_from_service1,
+                                       upload_que=self._s1_que, new_access_callback=self.__access_from_service1,
                                        deactivate_callback=self.__deactivate_processing, logger=self.logger)
         self._service2 = ServiceWorker(name=s2_name, service_number=SentBy.s2, set_id_type=self._s2_id_type,
-                                       upload_que=self._s2_que, new_access_callback=self.__new_access_from_service2,
+                                       upload_que=self._s2_que, new_access_callback=self.__access_from_service2,
                                        deactivate_callback=self.__deactivate_processing, logger=self.logger)
         self.__db = SQLSession(file_name=self._name, init=True, debug=debug, s1_id_type=self._s1_id_type,
-                               s2_id_type=self._s2_id_type)
+                               s2_id_type=self._s2_id_type, logger=self.logger)
 
     @property
     def name(self) -> str:
@@ -97,16 +101,16 @@ class ChatBox:
             raise TypeError(f"get_uid_from_service_id: doesn't match the type {type(sent_by)} of `sent_by`")
         return uid
 
-    async def __new_access_from_service1(self, service1_id: ImmutableType, create_client_if_no_exist=True,
-                                         queue_in_previous_message=False) -> ChatClient:
+    async def __access_from_service1(self, service1_id: ImmutableType, create_client_if_no_exist=True,
+                                     queue_in_previous_message=False) -> ChatClient:
         #  New access 2nd step
         sent_by = SentBy.s1
-        cc = await self.__new_access_processing(sent_by, service1_id, create_client_if_no_exist)
+        cc = await self.__access_processing(sent_by, service1_id, create_client_if_no_exist)
         await run_as_await_func(self._service2.access_callback_from_other_worker, cc)
         return cc
 
-    async def __new_access_from_service2(self, service2_id: ImmutableType,
-                                         create_client_if_no_exist=True) -> ChatClient:
+    async def __access_from_service2(self, service2_id: ImmutableType,
+                                     create_client_if_no_exist=True) -> ChatClient:
         #  New access 2nd step
         sent_by = SentBy.s2
         cc = await self.__new_access_processing(sent_by, service2_id, create_client_if_no_exist)
@@ -114,12 +118,12 @@ class ChatBox:
         return cc
 
     # This function is called __new_access_service1 or __new_access_service2
-    async def __new_access_processing(self, sent_by: SentBy, service_id: ImmutableType, create_client_if_no_exist: bool) \
+    async def __access_processing(self, sent_by: SentBy, service_id: ImmutableType, create_client_if_no_exist: bool) \
             -> ChatClient:
         # New access 3rd step
         cc: ChatClient | None = self.__db.get_chat_client(sent_by, service_id)
         if cc is None and create_client_if_no_exist:
-            cc = await self.create_new_client(sent_by, service_id)
+            cc = await self.__create_new_client(sent_by, service_id)
         await asyncio.sleep(0)
         return cc
 
@@ -136,12 +140,30 @@ class ChatBox:
     async def __broker_service1(self):  # service1 upload _s1_que -> service2 _rv_que
         while True:
             msg: Message = await self._s1_que.get()
-            self.__db.commit_message(msg)
-            await self._service2._rv_que.put(msg)
+            self.logger.debug({"action": "receive", "object": "broker_s1", "content": msg.content})
+            if self.__db.commit_message(msg):
+                self.logger.debug({"action": "commit", "object": "broker_s1", "content": msg.content,
+                                   "status": "success"})
+            else:
+                self.logger.debug({"action": "commit", "object": "broker_s1", "content": msg.content,
+                                   "status": "success",
+                                   "info": {"uid": str(msg.uid),
+                                            "content": msg.content}.__str__()})
+            await self._service1.rv_que.put(msg)
+            await self._service2.rv_que.put(msg)
 
     async def __broker_service2(self):  # service2 upload _s2_que -> service1 _rv_que
         while True:
             msg: Message = await self._s2_que.get()
+            self.logger.debug({"place": "broker_s2", "action": "receive", "status": "success"})
+            if self.__db.commit_message(msg):
+                self.logger.debug({"place": "broker_s2", "action": "commit", "status": "success"})
+            else:
+                self.logger.error({"place": "broker_s2", "action": "commit", "status": "error",
+                                   "info": {"uid": str(msg.uid),
+                                            "content": msg.content}.__str__()})
+            await self._service1.rv_que.put(msg)
+            await self._service2.rv_que.put(msg)
             self.__db.commit_message(msg)
             await self._service1._rv_que.put(msg)
 
@@ -153,7 +175,7 @@ class ChatBox:
     #     else:
     #         self.create_exist_client(client_queue)
 
-    async def create_new_client(self, sent_by: SentBy, service_id: ImmutableType) -> ChatClient:
+    async def __create_new_client(self, sent_by: SentBy, service_id: ImmutableType) -> ChatClient:
         """
 
         Args:
@@ -166,13 +188,11 @@ class ChatBox:
         if sent_by == SentBy.s1:
             service2_id = await run_as_await_func(self._service2.create_callback_from_other_worker, service_id,
                                                   raise_error=True)
-            cc = ChatClient(s1_id=service_id, s2_id=service2_id)
-            self.__db.add_new_client(cc)
+            service1_id = service_id
         elif sent_by == SentBy.s2:
             service1_id = await run_as_await_func(self._service1.create_callback_from_other_worker, service_id,
                                                   raise_error=True)
-            cc = ChatClient(s1_id=service1_id, s2_id=service_id)
-            self.__db.add_new_client(cc)
+            service2_id = service_id
         else:
             raise AttributeError()
         return cc

@@ -1,11 +1,12 @@
+import json
 import pickle
 from uuid import UUID, uuid4
 
-from chatbox50._utils import Immutable, ImmutableType
+from chatbox50._utils import Immutable
 from chatbox50.message import Message
 import logging
 
-logger = logging.getLogger("client")
+logger = logging.getLogger("chatbox.client")
 
 
 class ChatClient:

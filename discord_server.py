@@ -9,7 +9,6 @@ from discord import (
 import typing
 import logging
 
-logger = logging.getLogger(__name__)
 import chatbox50
 discord.VoiceClient.warn_nacl = False
 FORUM_TEMPLATE = """
@@ -20,7 +19,7 @@ set uid as `{}`
 
 
 class DiscordServer(Client):
-    def __init__(self, api: chatbox50.ServiceWorker, *, intents: Intents = Intents.all(),
+    def __init__(self, api: chatbox50.ServiceWorker, _logger: logging.Logger, *, intents: Intents = Intents.all(),
                  **options: typing.Any):
         super().__init__(intents=intents, **options)
         self._api = api
@@ -30,6 +29,7 @@ class DiscordServer(Client):
         self._forum_chatbox_id: dict[int, UUID] = dict()  # dict[ForumChannel.id, Chatbox.uid]
         # self.channels: dict[int, ForumChannel] = dict()  # dict[ForumChannel.id, ForumChannel]
         self.threads: dict[int, Thread] = dict()  # dict[Thread.id, Thread]
+        self.logger = _logger.getChild("discord")
 
     async def on_message(self, message: Message):  # Event Callback
         # ignore a message sent by this bot.
@@ -41,14 +41,28 @@ class DiscordServer(Client):
             await msg_sender(message.content)
 
     async def __create_thread_callback(self, name: UUID) -> int:
-        thread, _ = await self.channel.create_thread(name=str(name), content="new client access")
+        result = await self.channel.create_thread(name=str(name), content="new client access")
+        if result is None:
+            self.logger.error({"place": "discord", "action": "create_callback",
+                               "status": "error", "content": "result is None", "name": str(name)})
+        thread, _ = result
         self.threads[thread.id] = thread
         return thread.id
+
+    async def __accessed_callback(self, service_id: int):
+        ch = await self.fetch_channel(service_id)
+        self.threads[service_id] = ch
+        await ch.send("client connected!")
 
     async def __received_message_callback(self, message: chatbox50.Message):
         if message.sent_by == chatbox50.SentBy.s2:
             return
         thread: Thread = self.threads.get(message.service2_id)
+        if thread is None:
+            self.logger.error(
+                {"action": "receive_msg", "status": "error", "content": "Can't find service_id in threads",
+                 "message_content": message.content, "s2_id": str(message.service2_id)})
+            return
         await thread.send(message.content)
 
     async def on_ready(self):  # Event Callback
