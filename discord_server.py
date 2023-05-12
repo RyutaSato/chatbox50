@@ -35,7 +35,7 @@ class DiscordServer(Client):
         # ignore a message sent by this bot.
         if message.author == self.user:
             return
-        logger.debug(f"received: from:{message.author} content: {message.content}")
+        self.logger.debug(f"received: from:{message.author} content: {message.content}")
         if isinstance(message.channel, Thread) and message.channel.parent_id == self.channel.id:
             msg_sender = self._api.get_msg_sender(message.channel.id)
             await msg_sender(message.content)
@@ -66,24 +66,24 @@ class DiscordServer(Client):
         await thread.send(message.content)
 
     async def on_ready(self):  # Event Callback
-        logger.debug("Discord server setup...")
+        self.logger.debug("Discord server setup...")
         async for guild in self.fetch_guilds():
             channels = await guild.fetch_channels()
             for channel in channels:
                 if isinstance(channel, ForumChannel) and channel.name == "chatbox50":
-                    logger.debug(f"Found Forum channel id: {channel.id} {channel}")
+                    self.logger.debug(f"Found Forum channel id: {channel.id} {channel}")
                     self.channel = channel
                     for thread in self.channel.threads:
-                        logger.debug(f"Found thread : {thread.name} {thread.id}")
+                        self.logger.debug(f"Found thread : {thread.name} {thread.id}")
                         self.threads[thread.id] = thread
                     break
 
         if self.channel is None:
             raise RuntimeError("can't find chatbox50 ForumChannel")
         else:
-            logger.info("setup completed.")
-            logger.info(f"ChatBox50 forum channel is {self.channel.id}")
-            logger.info(f"there are already threads, {self.channel.threads}")
+            self.logger.info("setup completed.")
+            self.logger.info(f"ChatBox50 forum channel is {self.channel.id}")
+            self.logger.info(f"there are already threads, {self.channel.threads}")
 
 
 if __name__ == '__main__':

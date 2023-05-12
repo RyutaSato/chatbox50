@@ -3,6 +3,7 @@ from asyncio import Queue, create_task
 from typing import Any, Callable, Coroutine
 from uuid import UUID, uuid4
 
+from chatbox50 import ChatClient
 from chatbox50._utils import Immutable, ImmutableType, run_as_await_func
 from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
@@ -19,13 +20,13 @@ class ServiceWorker:
                  logger: logging.Logger
                  ):
         self._name = name
-        self.__service_number = service_number
+        self._num = service_number
         self._id_type = set_id_type  # Noneが入る可能性があります．
         self.__upload_que = upload_que
         self.__new_access_callback_to_cb = new_access_callback
         self.__deactivate_callback = deactivate_callback
         self.__logger = logger.getChild(name)
-        self._rv_que: Queue[Message] = Queue()
+        self.rv_que: Queue[Message] = Queue()
         self._sd_que: Queue[Message] = Queue()
         self._receive_msg_que: Queue[Message] = Queue()
         self._access_callback = None
@@ -47,8 +48,22 @@ class ServiceWorker:
         else:
             raise KeyError(f"{self._name}: uid:{key.uid} didn't find in active_uid.")
 
+    def __dict__(self):
+        return {"name": self._name,
+                "num": self._num,
+                "id_type": str(self._id_type),
+                "access_callback": str(self._access_callback),
+                "create_callback": str(self._create_callback),
+                "message_callback": str(self._received_message_callback),
+                "active_num": str(len(self._active_ids)),
+                "queue_dict_num": str(len(self._queue_dict)),
+                "upload_num": self.__upload_que.qsize(),
+                "rv_queue_num": self.rv_que.qsize(),
+                "sd_queue_num": self._sd_que.qsize()}.__str__()
+
     def run(self) -> None:
         # coroutine task
+        self.__logger.info({"place": "sw_run", "action": "task_start", "object": ["send_task", "receive_task"]})
         self.tasks = [create_task(self.__send_task(), name="send_task"),
                       create_task(self.__receive_task(), name="receive_task")]
 
@@ -61,27 +76,34 @@ class ServiceWorker:
         return True
 
     async def __send_task(self):  # _sd_que -> ServiceWorker -> upload_que -> ChatBox
+        self.__logger.debug({"place": self._name + "send_task", "action": "start", "info": vars(self)})
         while True:
             msg: Message = await self._sd_que.get()
+            self.__logger.debug({"place": self._name, "action": "get_msg", "info": vars(msg)})
             await self.__upload_que.put(msg)
+            self.__logger.debug({"place": self._name, "action": "upload_msg", "info": vars(msg)})
 
     async def __receive_task(self):  # _rv_queue -> ServiceWorker -> _receive_msg_que
+        self.__logger.debug({"place": self._name + "receive_task", "action": "start", "info": vars(self)})
         while True:
-            msg: Message = await self._rv_que.get()
+            msg: Message = await self.rv_que.get()
+            self.__logger.debug({"place": self._name, "action": "receive_msg", "info": vars(msg)})
             # ** it's not error TODO: 自分のメッセージも受け取るかを選択できるようにする
-            # if msg.sent_by == self.__service_number:
-            #     raise TypeError(f"MessageSentByAutherError: This is service `{self.__service_number.name}` \n"
+            # if msg.sent_by == self._num:
+            #     raise TypeError(f"MessageSentByAutherError: This is service `{self._num.name}` \n"
             #                     f"but the message is also sent by the same service.\n"
             #                     f"content: {msg.content}\n created at: {msg.created_at}")
-            client: ChatClient = self._active_ids.get(msg.get_id(self.__service_number))
+            client: ChatClient = self._active_ids.get(msg.get_id(self._num))
             if client is not None:
                 # If the client is active.
                 client.add_message(msg)
                 await run_as_await_func(self._received_message_callback, msg)
-                client_queue: Queue = self._queue_dict.get(msg.get_id(self.__service_number))
+                client_queue: Queue = self._queue_dict.get(msg.get_id(self._num))
                 await client_queue.put(msg)
                 await self._receive_msg_que.put(msg)
             else:
+                self.__logger.error({"place": self._name, "action": "get_cc", "status": "error", "info": [vars(
+                    msg), self.__dict__()]})
                 # TODO:If the client isn't active,
                 pass
 
@@ -153,19 +175,25 @@ class ServiceWorker:
         return service_id
 
     def __active_client(self, cc: ChatClient) -> Immutable:
-        if self.__service_number == SentBy.s1:
+        self.__logger.debug({"place": self._name, "action": "activate", "status": "start", "info": vars(cc)})
+        if self._num == SentBy.s1:
             service_id = cc.s1_id
         else:
             service_id = cc.s2_id
         self._active_ids[service_id] = cc
         self._queue_dict[service_id] = Queue()
+        self.__logger.debug({"place": self._name, "action": "activate", "status": "success"})
         return service_id
 
     def deactivate_client(self, service_id: Immutable, called_by_chat_box=False):
+        self.__logger.debug({"place": self._name, "action": "deactivate", "status": "start",
+                             "info": {"service_id": str(service_id),
+                                      "called_by_chat_box": called_by_chat_box}})
         cc = self._active_ids.pop(service_id)
         self._queue_dict.pop(service_id)
         if not called_by_chat_box:
-            self.__deactivate_callback(cc, self.__service_number)
+            self.__deactivate_callback(cc, self._num)
+        self.__logger.debug({"place": self._name, "action": "deactivate", "status": "success", "info": vars(cc)})
 
     def get_msg_sender(self, service_id: Immutable) -> Callable[[str], Coroutine[Any, Any, None]]:
         """
@@ -179,7 +207,7 @@ class ServiceWorker:
 
         async def _msg_sender(content: str) -> None:
             client = self._active_ids.get(service_id)
-            msg = Message(client, self.__service_number, content)
+            msg = Message(client, self._num, content)
             await self._sd_que.put(msg)
 
         return _msg_sender
