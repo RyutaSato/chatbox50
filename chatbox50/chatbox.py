@@ -87,9 +87,15 @@ class ChatBox:
     def get_worker2(self) -> ServiceWorker:
         return self._service2
 
+    def __dict__(self):
+        return json.dumps({"place": self.name})
+
     def run(self) -> None:
+        self.logger.info({"place": "cc_run", "action": "task_start", "object": "service1"})
         self._service1.run()
+        self.logger.info({"place": "cc_run", "action": "task_start", "object": "service2"})
         self._service2.run()
+        self.logger.info({"place": "cc_run", "action": "task_start", "object": "broker"})
         self.__message_broker()
 
     def get_uid_from_service_id(self, sent_by: SentBy, service_id: ImmutableType) -> UUID:
@@ -113,7 +119,7 @@ class ChatBox:
                                      create_client_if_no_exist=True) -> ChatClient:
         #  New access 2nd step
         sent_by = SentBy.s2
-        cc = await self.__new_access_processing(sent_by, service2_id, create_client_if_no_exist)
+        cc = await self.__access_processing(sent_by, service2_id, create_client_if_no_exist)
         await run_as_await_func(self._service1.access_callback_from_other_worker, cc)
         return cc
 
@@ -134,10 +140,13 @@ class ChatBox:
             self._service1.deactivate_client(cc.s1_id, True)
 
     def __message_broker(self):
-        self.__task_broker1 = create_task(self.__broker_service1())
-        self.__task_broker2 = create_task(self.__broker_service2())
+        self.logger.info({"action": "task_start", "object": "broker_s1"})
+        self.__task_broker1 = create_task(self.__broker_service1(), name="broker_service1")
+        self.logger.info({"action": "task_start", "object": "broker_s2"})
+        self.__task_broker2 = create_task(self.__broker_service2(), name="broker_service2")
 
     async def __broker_service1(self):  # service1 upload _s1_que -> service2 _rv_que
+        self.logger.debug({"action": "start", "object": "broker_s1"})
         while True:
             msg: Message = await self._s1_que.get()
             self.logger.debug({"action": "receive", "object": "broker_s1", "content": msg.content})
@@ -153,6 +162,7 @@ class ChatBox:
             await self._service2.rv_que.put(msg)
 
     async def __broker_service2(self):  # service2 upload _s2_que -> service1 _rv_que
+        self.logger.debug({"place": "broker_s2", "action": "start"})
         while True:
             msg: Message = await self._s2_que.get()
             self.logger.debug({"place": "broker_s2", "action": "receive", "status": "success"})
@@ -177,7 +187,7 @@ class ChatBox:
 
     async def __create_new_client(self, sent_by: SentBy, service_id: ImmutableType) -> ChatClient:
         """
-
+        New access 4th step
         Args:
             sent_by:
             service_id:
@@ -185,14 +195,30 @@ class ChatBox:
         Returns:
 
         """
+        log_dict = {"place": "cc_create_new_client", "action": "create", "status": "start",
+                    "sent_by": sent_by, "service_id": str(service_id)}
+        self.logger.debug(log_dict)
+        log_dict["action"] = "callback"
         if sent_by == SentBy.s1:
+            log_dict["object"] = "s2_create_callback_from_other_worker"
+            self.logger.debug(log_dict)
             service2_id = await run_as_await_func(self._service2.create_callback_from_other_worker, service_id,
                                                   raise_error=True)
             service1_id = service_id
         elif sent_by == SentBy.s2:
+            log_dict["object"] = "s1_create_callback_from_other_worker"
+            self.logger.debug(log_dict)
             service1_id = await run_as_await_func(self._service1.create_callback_from_other_worker, service_id,
                                                   raise_error=True)
             service2_id = service_id
         else:
+            log_dict["status"] = "error"
+            self.logger.critical(log_dict)
             raise AttributeError()
+        log_dict["status"] = "success"
+        log_dict["service1_id"], log_dict["service2_id"] = service1_id, service2_id
+        self.logger.debug(log_dict)
+        cc = ChatClient(s1_id=service1_id, s2_id=service2_id)
+        self.__db.add_new_client(cc)
+
         return cc

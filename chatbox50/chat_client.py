@@ -31,6 +31,10 @@ class ChatClient:
     def __getitem__(self, item):
         return self.__another_property[item]
 
+    def __dict__(self):
+        return json.dumps({"uid": str(self.__uid), "s1_id": str(self._s1_id), "s2_id": str(self._s2_id), "properties":
+            self.__another_property})
+
     @property
     def uid(self) -> UUID:
         return self.__uid
