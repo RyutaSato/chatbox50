@@ -98,8 +98,12 @@ class ServiceWorker:
         return self._create_callback
 
     @property
-    def access_callback_from_other_worker(self) -> Callable[[ChatClient], ...]:
-        return self._access_callback
+    def access_callback_from_other_worker(self) -> Callable[[ChatClient], Coroutine[Any, Any, None]]:
+        async def __access_func(cc: ChatClient):
+            service_id = self.__active_client(cc)
+            await run_as_await_func(self._access_callback, service_id)
+
+        return __access_func
 
     def set_new_access_callback(self, callback: Callable[[Immutable], ...]) -> None:
         """
@@ -111,12 +115,7 @@ class ServiceWorker:
         Returns:
 
         """
-
-        async def __access_process(cc: ChatClient):
-            service_id = self.__active_client(cc)
-            await run_as_await_func(callback, service_id)
-
-        self._access_callback = __access_process
+        self._access_callback = callback
 
     def set_create_callback(self, callback: Callable[[Immutable], Immutable] | Callable[[Immutable], Coroutine[Any,
     Any, Immutable]]):
