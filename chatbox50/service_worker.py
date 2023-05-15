@@ -1,12 +1,12 @@
 import logging
-from asyncio import Queue, create_task
-from typing import Any, Callable, Coroutine
+from asyncio import CancelledError, Queue, Task, create_task
 from uuid import UUID, uuid4
-
-from chatbox50 import ChatClient
+from typing import Any, Callable, Coroutine
 from chatbox50._utils import Immutable, ImmutableType, run_as_await_func
 from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
+
+logger = logging.getLogger("chatbox.worker")
 
 
 class ServiceWorker:
@@ -17,7 +17,7 @@ class ServiceWorker:
                  upload_que: Queue,
                  new_access_callback: Callable[[Immutable, ...], Coroutine[Any, Any, ChatClient]],
                  deactivate_callback: Callable[[ChatClient, SentBy], None],
-                 logger: logging.Logger
+                 _logger: logging.Logger
                  ):
         self._name = name
         self._num = service_number
@@ -25,7 +25,8 @@ class ServiceWorker:
         self.__upload_que = upload_que
         self.__new_access_callback_to_cb = new_access_callback
         self.__deactivate_callback = deactivate_callback
-        self.__logger = logger.getChild(name)
+        global logger
+        logger = _logger.getChild(name)
         self.rv_que: Queue[Message] = Queue()
         self._sd_que: Queue[Message] = Queue()
         self._receive_msg_que: Queue[Message] = Queue()
@@ -61,11 +62,12 @@ class ServiceWorker:
                 "rv_queue_num": self.rv_que.qsize(),
                 "sd_queue_num": self._sd_que.qsize()}.__str__()
 
-    def run(self) -> None:
+    def run(self) -> list[Task]:
         # coroutine task
-        self.__logger.info({"place": "sw_run", "action": "task_start", "object": ["send_task", "receive_task"]})
+        logger.info({"place": "sw_run", "action": "task_start", "object": ["send_task", "receive_task"]})
         self.tasks = [create_task(self.__send_task(), name="send_task"),
                       create_task(self.__receive_task(), name="receive_task")]
+        return self.tasks
 
     def is_running(self) -> bool:
         if self.tasks is None:
@@ -76,36 +78,42 @@ class ServiceWorker:
         return True
 
     async def __send_task(self):  # _sd_que -> ServiceWorker -> upload_que -> ChatBox
-        self.__logger.debug({"place": self._name + "send_task", "action": "start", "info": vars(self)})
-        while True:
-            msg: Message = await self._sd_que.get()
-            self.__logger.debug({"place": self._name, "action": "get_msg", "info": vars(msg)})
-            await self.__upload_que.put(msg)
-            self.__logger.debug({"place": self._name, "action": "upload_msg", "info": vars(msg)})
+        try:
+            logger.debug({"place": self._name + "send_task", "action": "start", "info": vars(self)})
+            while True:
+                msg: Message = await self._sd_que.get()
+                logger.debug({"place": self._name, "action": "get_msg", "info": vars(msg)})
+                await self.__upload_que.put(msg)
+                logger.debug({"place": self._name, "action": "upload_msg", "info": vars(msg)})
+        except CancelledError:
+            return
 
     async def __receive_task(self):  # _rv_queue -> ServiceWorker -> _receive_msg_que
-        self.__logger.debug({"place": self._name + "receive_task", "action": "start", "info": vars(self)})
-        while True:
-            msg: Message = await self.rv_que.get()
-            self.__logger.debug({"place": self._name, "action": "receive_msg", "info": vars(msg)})
-            # ** it's not error TODO: 自分のメッセージも受け取るかを選択できるようにする
-            # if msg.sent_by == self._num:
-            #     raise TypeError(f"MessageSentByAutherError: This is service `{self._num.name}` \n"
-            #                     f"but the message is also sent by the same service.\n"
-            #                     f"content: {msg.content}\n created at: {msg.created_at}")
-            client: ChatClient = self._active_ids.get(msg.get_id(self._num))
-            if client is not None:
-                # If the client is active.
-                client.add_message(msg)
-                await run_as_await_func(self._received_message_callback, msg)
-                client_queue: Queue = self._queue_dict.get(msg.get_id(self._num))
-                await client_queue.put(msg)
-                await self._receive_msg_que.put(msg)
-            else:
-                self.__logger.error({"place": self._name, "action": "get_cc", "status": "error", "info": [vars(
-                    msg), self.__dict__()]})
-                # TODO:If the client isn't active,
-                pass
+        try:
+            logger.debug({"place": self._name + "receive_task", "action": "start", "info": vars(self)})
+            while True:
+                msg: Message = await self.rv_que.get()
+                logger.debug({"place": self._name, "action": "receive_msg", "info": vars(msg)})
+                # ** it's not error TODO: 自分のメッセージも受け取るかを選択できるようにする
+                # if msg.sent_by == self._num:
+                #     raise TypeError(f"MessageSentByAutherError: This is service `{self._num.name}` \n"
+                #                     f"but the message is also sent by the same service.\n"
+                #                     f"content: {msg.content}\n created at: {msg.created_at}")
+                client: ChatClient = self._active_ids.get(msg.get_id(self._num))
+                if client is not None:
+                    # If the client is active.
+                    client.add_message(msg)
+                    await run_as_await_func(self._received_message_callback, msg)
+                    client_queue: Queue = self._queue_dict.get(msg.get_id(self._num))
+                    await client_queue.put(msg)
+                    await self._receive_msg_que.put(msg)
+                else:
+                    logger.error({"place": self._name, "action": "get_cc", "status": "error", "info": [vars(
+                        msg), self.__dict__()]})
+                    # TODO:If the client isn't active,
+                    pass
+        except CancelledError:
+            return
 
     @property
     def receive_queue(self) -> Queue[Message]:
@@ -139,8 +147,8 @@ class ServiceWorker:
         """
         self._access_callback = callback
 
-    def set_create_callback(self, callback: Callable[[Immutable], Immutable] | Callable[[Immutable], Coroutine[Any,
-    Any, Immutable]]):
+    def set_create_callback(self, callback: Callable[[Immutable], Immutable] |
+                                            Callable[[Immutable], Coroutine[Any, Any, Immutable]]):
         """
         このコールバックは，他のServiceWorkerからの新規クライアントの作成の際に呼び出されます．
         Args:
@@ -175,25 +183,25 @@ class ServiceWorker:
         return service_id
 
     def __active_client(self, cc: ChatClient) -> Immutable:
-        self.__logger.debug({"place": self._name, "action": "activate", "status": "start", "info": vars(cc)})
+        logger.debug({"place": self._name, "action": "activate", "status": "start", "info": vars(cc)})
         if self._num == SentBy.s1:
             service_id = cc.s1_id
         else:
             service_id = cc.s2_id
         self._active_ids[service_id] = cc
         self._queue_dict[service_id] = Queue()
-        self.__logger.debug({"place": self._name, "action": "activate", "status": "success"})
+        logger.debug({"place": self._name, "action": "activate", "status": "success"})
         return service_id
 
     def deactivate_client(self, service_id: Immutable, called_by_chat_box=False):
-        self.__logger.debug({"place": self._name, "action": "deactivate", "status": "start",
-                             "info": {"service_id": str(service_id),
-                                      "called_by_chat_box": called_by_chat_box}})
+        logger.debug({"place": self._name, "action": "deactivate", "status": "start",
+                      "info": {"service_id": str(service_id),
+                               "called_by_chat_box": called_by_chat_box}})
         cc = self._active_ids.pop(service_id)
         self._queue_dict.pop(service_id)
         if not called_by_chat_box:
             self.__deactivate_callback(cc, self._num)
-        self.__logger.debug({"place": self._name, "action": "deactivate", "status": "success", "info": vars(cc)})
+        logger.debug({"place": self._name, "action": "deactivate", "status": "success", "info": vars(cc)})
 
     def get_msg_sender(self, service_id: Immutable) -> Callable[[str], Coroutine[Any, Any, None]]:
         """
