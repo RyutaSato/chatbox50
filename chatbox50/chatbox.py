@@ -1,14 +1,17 @@
 import asyncio
 import json
-from asyncio import Queue, create_task
+from asyncio import CancelledError, Queue, Task, create_task
 from uuid import UUID, uuid4
 
-from chatbox50._utils import ImmutableType, run_as_await_func
+from chatbox50._utils import ImmutableType, run_as_await_func, get_logger_with_nullhandler
 from chatbox50.db_session import SQLSession
 from chatbox50.chat_client import ChatClient
 from chatbox50.service_worker import ServiceWorker
 from chatbox50.message import Message, SentBy
 import logging
+
+logger = logging.getLogger(__name__)
+logger.addHandler(logging.NullHandler())
 
 
 class ChatBox:
@@ -23,7 +26,7 @@ class ChatBox:
                  s1_id_type: ImmutableType = UUID,
                  s2_id_type: ImmutableType = UUID,
                  debug: bool = False,
-                 logger: logging.Logger = None):
+                 _logger: logging.Logger = None):
         """
 
         Args:
@@ -50,26 +53,19 @@ class ChatBox:
         self._s2_que = Queue()
         self._s1_id_type = s1_id_type
         self._s2_id_type = s2_id_type
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        if debug:
-            handler = logging.FileHandler("chatbox50.log", mode='w+', encoding="utf-8", )
-        else:
-            handler = logging.NullHandler()
-        handler.setFormatter(formatter)
-        if logger is None:
-            self.logger = logging.getLogger(name)
-        else:
-            self.logger = logger.getChild(name)
-        self.logger.addHandler(handler)
+        if _logger is None:
+            _logger = get_logger_with_nullhandler(self._name)
+        global logger
+        logger = _logger.getChild(name)
 
         self._service1 = ServiceWorker(name=s1_name, service_number=SentBy.s1, set_id_type=self._s1_id_type,
                                        upload_que=self._s1_que, new_access_callback=self.__access_from_service1,
-                                       deactivate_callback=self.__deactivate_processing, logger=self.logger)
+                                       deactivate_callback=self.__deactivate_processing, _logger=logger)
         self._service2 = ServiceWorker(name=s2_name, service_number=SentBy.s2, set_id_type=self._s2_id_type,
                                        upload_que=self._s2_que, new_access_callback=self.__access_from_service2,
-                                       deactivate_callback=self.__deactivate_processing, logger=self.logger)
+                                       deactivate_callback=self.__deactivate_processing, _logger=logger)
         self.__db = SQLSession(file_name=self._name, init=True, debug=debug, s1_id_type=self._s1_id_type,
-                               s2_id_type=self._s2_id_type, logger=self.logger)
+                               s2_id_type=self._s2_id_type, logger=logger)
 
     @property
     def name(self) -> str:
@@ -90,13 +86,15 @@ class ChatBox:
     def __dict__(self):
         return json.dumps({"place": self.name})
 
-    def run(self) -> None:
-        self.logger.info({"place": "cc_run", "action": "task_start", "object": "service1"})
-        self._service1.run()
-        self.logger.info({"place": "cc_run", "action": "task_start", "object": "service2"})
-        self._service2.run()
-        self.logger.info({"place": "cc_run", "action": "task_start", "object": "broker"})
-        self.__message_broker()
+    def run(self) -> list[Task]:
+        tasks = []
+        logger.info({"place": "cc_run", "action": "task_start", "object": "service1"})
+        tasks.extend(self._service1.run())
+        logger.info({"place": "cc_run", "action": "task_start", "object": "service2"})
+        tasks.extend(self._service2.run())
+        logger.info({"place": "cc_run", "action": "task_start", "object": "broker"})
+        tasks.extend(self.__message_broker())
+        return tasks
 
     def get_uid_from_service_id(self, sent_by: SentBy, service_id: ImmutableType) -> UUID:
         if sent_by == SentBy.s1:
@@ -140,42 +138,49 @@ class ChatBox:
             self._service1.deactivate_client(cc.s1_id, True)
 
     def __message_broker(self):
-        self.logger.info({"action": "task_start", "object": "broker_s1"})
+        logger.info({"action": "task_start", "object": "broker_s1"})
         self.__task_broker1 = create_task(self.__broker_service1(), name="broker_service1")
-        self.logger.info({"action": "task_start", "object": "broker_s2"})
+        logger.info({"action": "task_start", "object": "broker_s2"})
         self.__task_broker2 = create_task(self.__broker_service2(), name="broker_service2")
+        return [self.__task_broker1, self.__task_broker2]
 
     async def __broker_service1(self):  # service1 upload _s1_que -> service2 _rv_que
-        self.logger.debug({"action": "start", "object": "broker_s1"})
-        while True:
-            msg: Message = await self._s1_que.get()
-            self.logger.debug({"action": "receive", "object": "broker_s1", "content": msg.content})
-            if self.__db.commit_message(msg):
-                self.logger.debug({"action": "commit", "object": "broker_s1", "content": msg.content,
-                                   "status": "success"})
-            else:
-                self.logger.debug({"action": "commit", "object": "broker_s1", "content": msg.content,
-                                   "status": "success",
-                                   "info": {"uid": str(msg.uid),
-                                            "content": msg.content}.__str__()})
-            await self._service1.rv_que.put(msg)
-            await self._service2.rv_que.put(msg)
+        try:
+            logger.debug({"action": "start", "object": "broker_s1"})
+            while True:
+                msg: Message = await self._s1_que.get()
+                logger.debug({"action": "receive", "object": "broker_s1", "content": msg.content})
+                if self.__db.commit_message(msg):
+                    logger.debug({"action": "commit", "object": "broker_s1", "content": msg.content,
+                                  "status": "success"})
+                else:
+                    logger.debug({"action": "commit", "object": "broker_s1", "content": msg.content,
+                                  "status": "success",
+                                  "info": {"uid": str(msg.uid),
+                                           "content": msg.content}.__str__()})
+                await self._service1.rv_que.put(msg)
+                await self._service2.rv_que.put(msg)
+        except CancelledError:
+            return
 
     async def __broker_service2(self):  # service2 upload _s2_que -> service1 _rv_que
-        self.logger.debug({"place": "broker_s2", "action": "start"})
-        while True:
-            msg: Message = await self._s2_que.get()
-            self.logger.debug({"place": "broker_s2", "action": "receive", "status": "success"})
-            if self.__db.commit_message(msg):
-                self.logger.debug({"place": "broker_s2", "action": "commit", "status": "success"})
-            else:
-                self.logger.error({"place": "broker_s2", "action": "commit", "status": "error",
-                                   "info": {"uid": str(msg.uid),
-                                            "content": msg.content}.__str__()})
-            await self._service1.rv_que.put(msg)
-            await self._service2.rv_que.put(msg)
-            self.__db.commit_message(msg)
-            await self._service1._rv_que.put(msg)
+        try:
+            logger.debug({"place": "broker_s2", "action": "start"})
+            while True:
+                msg: Message = await self._s2_que.get()
+                logger.debug({"place": "broker_s2", "action": "receive", "status": "success"})
+                if self.__db.commit_message(msg):
+                    logger.debug({"place": "broker_s2", "action": "commit", "status": "success"})
+                else:
+                    logger.error({"place": "broker_s2", "action": "commit", "status": "error",
+                                  "info": {"uid": str(msg.uid),
+                                           "content": msg.content}.__str__()})
+                await self._service1.rv_que.put(msg)
+                await self._service2.rv_que.put(msg)
+                self.__db.commit_message(msg)
+                await self._service1._rv_que.put(msg)
+        except CancelledError:
+            return
 
     # deprecated
     # async def subscribe(self, client_id, client_queue):
@@ -197,27 +202,27 @@ class ChatBox:
         """
         log_dict = {"place": "cc_create_new_client", "action": "create", "status": "start",
                     "sent_by": sent_by, "service_id": str(service_id)}
-        self.logger.debug(log_dict)
+        logger.debug(log_dict)
         log_dict["action"] = "callback"
         if sent_by == SentBy.s1:
             log_dict["object"] = "s2_create_callback_from_other_worker"
-            self.logger.debug(log_dict)
+            logger.debug(log_dict)
             service2_id = await run_as_await_func(self._service2.create_callback_from_other_worker, service_id,
                                                   raise_error=True)
             service1_id = service_id
         elif sent_by == SentBy.s2:
             log_dict["object"] = "s1_create_callback_from_other_worker"
-            self.logger.debug(log_dict)
+            logger.debug(log_dict)
             service1_id = await run_as_await_func(self._service1.create_callback_from_other_worker, service_id,
                                                   raise_error=True)
             service2_id = service_id
         else:
             log_dict["status"] = "error"
-            self.logger.critical(log_dict)
+            logger.critical(log_dict)
             raise AttributeError()
         log_dict["status"] = "success"
         log_dict["service1_id"], log_dict["service2_id"] = service1_id, service2_id
-        self.logger.debug(log_dict)
+        logger.debug(log_dict)
         cc = ChatClient(s1_id=service1_id, s2_id=service2_id)
         self.__db.add_new_client(cc)
 
