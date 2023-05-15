@@ -3,7 +3,6 @@ import logging
 from uuid import UUID
 from typing import Type, TypeVar
 
-logger = logging.getLogger(__name__)
 ImmutableType = Type[int | str | UUID | complex | tuple | bytes]
 Immutable = TypeVar("Immutable", int, str, UUID, complex, tuple, bytes)
 
@@ -42,3 +41,9 @@ def str_converter(value: Immutable):
         return str(value.hex)
     else:
         return str(value)
+
+
+def get_logger_with_nullhandler(name: str) -> logging.Logger:
+    logger = logging.getLogger(name)
+    logger.addHandler(logging.NullHandler())
+    return logger
