@@ -8,11 +8,22 @@
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
     <title>WebSocket Chat</title>
     <script src="main.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet"
+          integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <h1>WebSocket Chat</h1>
-    <ul id="chat-list"></ul>
-    <label for="chat"></label><input type="text" id="chat" placeholder="メッセージを入力">
-    <button id="send">送信</button>
+<div class="chat-container">
+    <h1>Customer service</h1>
+    <ul id="message-list" class="message-list">
+    </ul>
+
+    <div class="input-container">
+        <label for="message-list">
+            <input type="text" class="message-input" id="message-content" placeholder="Input message">
+        </label>
+        <button class="send-button" id="send-button">Send</button>
+    </div>
+</div>
 </body>
 </html>

@@ -10,6 +10,8 @@ from chatbox50.message import Message, SentBy
 from chatbox50.chat_client import ChatClient
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
+_logger = logging.getLogger("chatbox.db")
+_logger.addHandler(logging.NullHandler())
 
 
 class SQLSession:

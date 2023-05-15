@@ -4,10 +4,6 @@ from uuid import UUID, uuid4
 
 from chatbox50._utils import Immutable
 from chatbox50.message import Message
-import logging
-
-logger = logging.getLogger("chatbox.client")
-
 
 class ChatClient:
     def __init__(self,
@@ -60,17 +56,6 @@ class ChatClient:
             self.__messages.append(message)
         else:
             raise AttributeError()
-
-    # ** DEPRECATED ** because those id is set by Chatbox constractor in advance.
-    # def set_s1_id(self, service_id: Immutable):
-    #     if self._s1_id is not None:
-    #         logger.warning("service1_id is already set. You are trying to overwrite it.")
-    #     self._s1_id = service_id
-    #
-    # def set_s2_id(self, service_id: Immutable):
-    #     if self._s2_id is not None:
-    #         logger.warning("service2_id is already set. You are trying to overwrite it.")
-    #     self._s2_id = service_id
 
     def pickle_properties(self) -> bytes:
         return pickle.dumps(self.__another_property)
