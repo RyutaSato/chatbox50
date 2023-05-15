@@ -1,10 +1,8 @@
-import asyncio
-import os
 from uuid import UUID
 
 import discord.utils
 from discord import (
-    Client, Intents, Message, Guild, ForumChannel, Thread
+    Client, Intents, Message, ForumChannel, Thread
 )
 import typing
 import logging
@@ -58,6 +56,10 @@ class DiscordServer(Client):
         if message.sent_by == chatbox50.SentBy.s2:
             return
         thread: Thread = self.threads.get(message.service2_id)
+        if thread is None:
+            thread: Thread = await self.fetch_channel(message.service2_id)
+            if not thread:
+                self.threads[message.service2_id] = thread
         if thread is None:
             self.logger.error(
                 {"action": "receive_msg", "status": "error", "content": "Can't find service_id in threads",
