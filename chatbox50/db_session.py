@@ -7,7 +7,7 @@ from functools import cache
 
 from chatbox50._utils import Immutable, ImmutableType, str_converter
 from chatbox50.message import Message, SentBy
-from chatbox50.chat_client import ChatClient
+from chatbox50.connection import Connection
 
 DATETIME_FORMAT = '%Y-%m-%d %H:%M:%S'
 _logger = logging.getLogger("chatbox.db")
@@ -30,7 +30,7 @@ class SQLSession:
         cur.execute(sql, parameter)
         return cur.fetchall()
 
-    def add_new_client(self, cc: ChatClient) -> bool:
+    def add_new_connection(self, cc: Connection) -> bool:
         """
 
         Args:
@@ -54,7 +54,7 @@ class SQLSession:
                             "str_s2": str_s2})
         return True
 
-    def get_chat_client(self, sent_by: SentBy, service_id: Immutable) -> None | ChatClient:
+    def get_connection(self, sent_by: SentBy, service_id: Immutable) -> None | Connection:
         """
         ** COMPLETED **
         Args:
@@ -87,7 +87,7 @@ class SQLSession:
             log_dict["msg"] = "can't find cc from db. returned None"
             self._logger.debug(json.dumps(log_dict))
             return None
-        cc: ChatClient = ChatClient(uid=UUID(client[1]), s1_id=self._s1_id_type(client[2]), s2_id=self._s2_id_type(
+        cc: Connection = Connection(uid=UUID(client[1]), s1_id=self._s1_id_type(client[2]), s2_id=self._s2_id_type(
             client[3]))
         log_dict["status"] = "success"
         log_dict["info"]["result"] = str(client)
@@ -182,7 +182,7 @@ class SQLSession:
                             "msg": "Can't commit message because client_id is None"})
         return True
 
-    def insert_history_to_chat_client(self, cc: ChatClient) -> bool:
+    def insert_history_to_chat_client(self, cc: Connection) -> bool:
         """
         Args:
             cc:

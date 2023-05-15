@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 from typing import Any, Callable, Coroutine
 from chatbox50._utils import Immutable, ImmutableType, run_as_await_func
 from chatbox50.message import Message, SentBy
-from chatbox50.chat_client import ChatClient
+from chatbox50.connection import Connection
 
 logger = logging.getLogger("chatbox.worker")
 
@@ -15,8 +15,8 @@ class ServiceWorker:
                  service_number: SentBy,
                  set_id_type: ImmutableType,
                  upload_que: Queue,
-                 new_access_callback: Callable[[Immutable, ...], Coroutine[Any, Any, ChatClient]],
-                 deactivate_callback: Callable[[ChatClient, SentBy], None],
+                 new_access_callback: Callable[[Immutable, ...], Coroutine[Any, Any, Connection]],
+                 deactivate_callback: Callable[[Connection, SentBy], None],
                  _logger: logging.Logger
                  ):
         self._name = name
@@ -33,13 +33,13 @@ class ServiceWorker:
         self._access_callback = None
         self._create_callback = None
         self._received_message_callback = None
-        self._active_ids: dict[Immutable, ChatClient] = dict()
+        self._active_ids: dict[Immutable, Connection] = dict()
         self._queue_dict: dict[Immutable, Queue] = dict()
         self.tasks = None
 
     def __setitem__(self, key, value):
-        if not isinstance(key, ChatClient):
-            raise TypeError(f"key must be `ChatClient` not `{type(key)}`")
+        if not isinstance(key, Connection):
+            raise TypeError(f"key must be `Connection` not `{type(key)}`")
         if not isinstance(value, Message):
             raise TypeError(f"value must be `Message` not `{type(value)}`")
 
@@ -99,7 +99,7 @@ class ServiceWorker:
                 #     raise TypeError(f"MessageSentByAutherError: This is service `{self._num.name}` \n"
                 #                     f"but the message is also sent by the same service.\n"
                 #                     f"content: {msg.content}\n created at: {msg.created_at}")
-                client: ChatClient = self._active_ids.get(msg.get_id(self._num))
+                client: Connection = self._active_ids.get(msg.get_id(self._num))
                 if client is not None:
                     # If the client is active.
                     client.add_message(msg)
@@ -128,8 +128,8 @@ class ServiceWorker:
         return self._create_callback
 
     @property
-    def access_callback_from_other_worker(self) -> Callable[[ChatClient], Coroutine[Any, Any, None]]:
-        async def __access_func(cc: ChatClient):
+    def access_callback_from_other_worker(self) -> Callable[[Connection], Coroutine[Any, Any, None]]:
+        async def __access_func(cc: Connection):
             service_id = self.__active_client(cc)
             await run_as_await_func(self._access_callback, service_id)
 
@@ -178,11 +178,11 @@ class ServiceWorker:
             if not isinstance(service_id, self._id_type):
                 raise TypeError(f"{self._name}.access_new_client: service_id must be `{type(self._id_type)}` not `"
                                 f"{type(service_id)}`")
-        cc: ChatClient = await self.__new_access_callback_to_cb(service_id, create_client_if_no_exist)
+        cc: Connection = await self.__new_access_callback_to_cb(service_id, create_client_if_no_exist)
         self.__active_client(cc)
         return service_id
 
-    def __active_client(self, cc: ChatClient) -> Immutable:
+    def __active_client(self, cc: Connection) -> Immutable:
         logger.debug({"place": self._name, "action": "activate", "status": "start", "info": vars(cc)})
         if self._num == SentBy.s1:
             service_id = cc.s1_id

@@ -4,8 +4,12 @@ from uuid import UUID, uuid4
 
 from chatbox50._utils import Immutable
 from chatbox50.message import Message
+import logging
 
-class ChatClient:
+logger = logging.getLogger("chatbox.client")
+
+
+class Connection:
     def __init__(self,
                  s1_id: Immutable,
                  s2_id: Immutable,

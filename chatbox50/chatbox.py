@@ -5,7 +5,7 @@ from uuid import UUID, uuid4
 
 from chatbox50._utils import ImmutableType, run_as_await_func, get_logger_with_nullhandler
 from chatbox50.db_session import SQLSession
-from chatbox50.chat_client import ChatClient
+from chatbox50.connection import Connection
 from chatbox50.service_worker import ServiceWorker
 from chatbox50.message import Message, SentBy
 import logging
@@ -106,7 +106,7 @@ class ChatBox:
         return uid
 
     async def __access_from_service1(self, service1_id: ImmutableType, create_client_if_no_exist=True,
-                                     queue_in_previous_message=False) -> ChatClient:
+                                     queue_in_previous_message=False) -> Connection:
         #  New access 2nd step
         sent_by = SentBy.s1
         cc = await self.__access_processing(sent_by, service1_id, create_client_if_no_exist)
@@ -114,7 +114,7 @@ class ChatBox:
         return cc
 
     async def __access_from_service2(self, service2_id: ImmutableType,
-                                     create_client_if_no_exist=True) -> ChatClient:
+                                     create_client_if_no_exist=True) -> Connection:
         #  New access 2nd step
         sent_by = SentBy.s2
         cc = await self.__access_processing(sent_by, service2_id, create_client_if_no_exist)
@@ -123,15 +123,15 @@ class ChatBox:
 
     # This function is called __new_access_service1 or __new_access_service2
     async def __access_processing(self, sent_by: SentBy, service_id: ImmutableType, create_client_if_no_exist: bool) \
-            -> ChatClient:
+            -> Connection:
         # New access 3rd step
-        cc: ChatClient | None = self.__db.get_chat_client(sent_by, service_id)
+        cc: Connection | None = self.__db.get_connection(sent_by, service_id)
         if cc is None and create_client_if_no_exist:
             cc = await self.__create_new_client(sent_by, service_id)
         await asyncio.sleep(0)
         return cc
 
-    def __deactivate_processing(self, cc: ChatClient, sent_by: SentBy):
+    def __deactivate_processing(self, cc: Connection, sent_by: SentBy):
         if sent_by == SentBy.s1:
             self._service2.deactivate_client(cc.s2_id, True)
         if sent_by == SentBy.s2:
@@ -190,7 +190,7 @@ class ChatBox:
     #     else:
     #         self.create_exist_client(client_queue)
 
-    async def __create_new_client(self, sent_by: SentBy, service_id: ImmutableType) -> ChatClient:
+    async def __create_new_client(self, sent_by: SentBy, service_id: ImmutableType) -> Connection:
         """
         New access 4th step
         Args:
@@ -223,7 +223,7 @@ class ChatBox:
         log_dict["status"] = "success"
         log_dict["service1_id"], log_dict["service2_id"] = service1_id, service2_id
         logger.debug(log_dict)
-        cc = ChatClient(s1_id=service1_id, s2_id=service2_id)
-        self.__db.add_new_client(cc)
+        cc = Connection(s1_id=service1_id, s2_id=service2_id)
+        self.__db.add_new_connection(cc)
 
         return cc

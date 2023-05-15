@@ -7,7 +7,7 @@ from uuid import UUID
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from chatbox50.chat_client import ChatClient
+    from chatbox50.connection import Connection
 
 
 class SentBy(IntEnum):
@@ -17,7 +17,7 @@ class SentBy(IntEnum):
 
 class Message:
     def __init__(self,
-                 chat_client: ChatClient,
+                 chat_client: Connection,
                  sent_by: SentBy,
                  content: str,
                  created_at: datetime = datetime.utcnow()):
