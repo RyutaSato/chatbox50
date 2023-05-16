@@ -3,10 +3,10 @@ from uuid import uuid4
 from fastapi import APIRouter, Request
 from starlette.responses import FileResponse
 
-route = APIRouter()
+staticfiles_router = APIRouter()
 
 
-@route.get("/")
+@staticfiles_router.get("/")
 async def root(request: Request):
     token = request.cookies.get("token")
     file_response = FileResponse("index.html")
@@ -15,11 +15,11 @@ async def root(request: Request):
     return file_response
 
 
-@route.get("/main.js")
+@staticfiles_router.get("/main.js")
 async def main_js():
     return FileResponse("main.js")
 
 
-@route.get("/style.css")
+@staticfiles_router.get("/style.css")
 async def style_css():
     return FileResponse("style.css")
