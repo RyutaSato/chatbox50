@@ -8,6 +8,7 @@ from fastapi import FastAPI, WebSocket
 from chatbox50 import ChatBox, ServiceWorker
 from discord_server import DiscordServer
 from websocket_router import ws_messenger
+from staticfiles_router import staticfiles_router
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 debug = False
@@ -62,7 +63,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title=NAME, lifespan=lifespan)
-
+app.include_router(staticfiles_router)
 
 @app.websocket("/ws/{uid}")
 async def websocket_endpoint(ws: WebSocket, uid: UUID):
