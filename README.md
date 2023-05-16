@@ -1,7 +1,5 @@
 # ChatBox50
 
-#### VideoDemo: https://www.youtube.com/watch?v=O-ex9Hj1u_M
-
 #### Description: ChatBox50 is a Python library that allows users to exchange messages between different services.
 
 It also persists their history properly and automatically by SQLite.

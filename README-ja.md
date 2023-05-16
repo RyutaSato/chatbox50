@@ -1,7 +1,5 @@
 # ChatBox50
 
-#### VideoDemo: https://www.youtube.com/watch?v=O-ex9Hj1u_M
-
 #### Description:　ChatBox50は，異なるサービス間でのメッセージのやりとりを可能にするPythonライブラリです．
 
 #### また，それらの履歴を適切に自動的にSQLiteにより永続化します．
