@@ -1,90 +1,95 @@
 # ChatBox50
 
-#### VideoDemo: TODO:
+#### VideoDemo:
 
-#### Description:　ChatBox50は，異なるサービス間でのメッセージのやりとりを可能にするPythonライブラリです．
+#### Description: ChatBox50 is a Python library that allows users to exchange messages between different services.
 
-#### また，それらの履歴を適切に自動的にSQLiteにより永続化します．
+It also persists their history properly and automatically by SQLite.
 
-本作品では，Web上のJavaScriptを用いてFastAPIによるWebサーバーとWebSocket通信を行い，Discordサーバーとメッセージのやりとりを可能とします．
+This work uses JavaScript on the web to perform WebSocket communication with a web server using FastAPI to exchange
+messages with the Discord server.
 
-プログラムを実行すると，Webサイトにアクセスできます．Webサイト上にはチャットページが表示され，自動的にユニークなID（UUID）が割り当てられます．
+When the program is executed, a website is accessed; a chat page is displayed on the website and a unique ID (UUID) is
+automatically assigned.
 
-chatbox50はコールバックにより，DiscordServerに，アクセスしたクライアントとチャットが可能なスレッドを作成します．
+chatbox50 creates a thread in DiscordServer via a callback that allows chatting with the accessing client.
 
-また，chatbox50は，そのクライアントのUUIDと，DiscordのチャンネルIDをSQLにより永続化しているため，再度アクセスした際も続きから会話が可能です．
+In addition, chatbox50 persists the client's UUID and Discord channel ID in SQL, so that the client can continue the
+conversation when accessing the server again.
 
-さらに，それらのメッセージのデータもSQLに保存されます．
+In addition, the data of these messages are also stored in SQL.
 
-全ての処理は非同期で行われており，多数のアクセスがあった場合でも，シームレスに機能します．
+All processes are asynchronous and work seamlessly even when there are many accesses.
 
-これはWebと，Discordアプリケーションという異なるサービス間でメッセージのやりとりをする1つの例として作りました．
+This is an example of message exchange between the Web and a Discord application.
 
-実際は，この例にとどまらず，あらゆるケースで利用可能です．
+In fact, it is not limited to this example, but can be used in all cases.
 
-ChatBox50は，それらのプラットフォームやライブラリにとらわれないPythonライブラリとして機能するよう設計しました．
+ChatBox50 is designed to function as a platform- and library-independent Python library.
 
-## 各ファイルの役割
+## Role of each file
 
-#### [chatbox50](chatbox50): 2つのサービス間のメッセージを保持しながら，非同期でメッセージを仲介するchatbox50ライブラリ本体
+#### [chatbox50](chatbox50): The main body of the chatbox50 library that mediates messages asynchronously while maintaining messages between the two services.
 
-#### [chatbox50/__init__.py](chatbox50/__init__.py): ライブラリのクラスのインポートの記述を簡素化します．
+#### [chatbox50/__init__.py](chatbox50/__init__.py): Simplifies the description of importing library classes.
 
-#### [chatbox50/_utils.py](chatbox50/_utils.py): いくつかのライブラリ用のユーティリティ関数を持ちます．
+#### [chatbox50/_utils.py](chatbox50/_utils.py): has utility functions for some libraries.
 
-`run_as_await_func()`は，コールバック関数を実行する際に使います．
-コールバックが登録されていない場合はそれを無視し，登録されておりかつ，`async def`で定義されている場合はそのまま実行され，
-`def`で定義されている場合は，別スレッドで非同期的にじっこうされます．
-`str_converter()`は，ユニークなIDをSQLに保存する際に使用されます．ユニークなIDを保存する際は，文字列として保存します．
-しかし，UUIDクラスなど，`str(UUID())`では，文字列を元のユニークなIDと同じ型に戻すことがうまくいかない場合があります．
-そのための文字列への変換関数です．
-`get_logger_with_nullhandler()`は，ライブラリ専用のloggerを作成する関数です．
+The `run_as_await_func()` is used to execute a callback function.
+If the callback is not registered, it is ignored; if it is registered and defined with `async def`, it is executed as
+is, and if it is defined with
+If the callback is defined with `def`, it is executed asynchronously in a separate thread.
+`str_converter()` is used to store unique IDs in SQL. When storing unique IDs, they are stored as strings.
+However, in some cases, such as UUID class, `str(UUID())` does not work well to convert the string back to the same type
+as the original unique ID.
+For this purpose, this function converts a string to a string.
+`get_logger_with_nullhandler()` is a function to create a dedicated logger for the library.
 
-#### [chatbox50/connection.py](chatbox50/connection.py): それぞれ2つのサービス間のクライアント接続情報を保持するクラスです．
+#### [chatbox50/connection.py](chatbox50/connection.py): Classes that hold client connection information between two services, respectively.
 
-- `s1_id`: service1のユニークなID
-- `s2_id`: service2のユニークなID
-- `uid`: Connectionの識別UUID
-- `Connection.__another_property`: それ以外の接続情報を保持したい場合は，ここに設定できます．
+- `s1_id`: unique ID of service1
+- `s2_id`: unique ID of service2
+- `uid`: UUID to identify the Connection
+- `Connection.__another_property`: If you want to keep other connection information, you can set it here.
 
-#### [chatbox50/db_session.py](chatbox50/db_session.py): データベースのCRUD処理を行うクラスです．
+#### [chatbox50/db_session.py](chatbox50/db_session.py): Class for database CRUD processing.
 
-#### [chatbox50/message.py](chatbox50/message.py): メッセージを定義するクラスです．
+#### [chatbox50/message.py](chatbox50/message.py): Class for defining messages.
 
-#### [chatbox50/service_worker.py](chatbox50/service_worker.py): サービスとメッセージの受け渡しを行うゲートウェイです．
+#### [chatbox50/service_worker.py](chatbox50/service_worker.py): Gateway for passing messages to and from the service.
 
-#### [discord_server.py](discord_server.py): DiscordのAPIとWebsocketで接続するためのクラスです．受信したメッセージのうち，chatbox50で管理されているメッセージをchatbox50のQueueに送ります．
+#### [discord_server.py](discord_server.py): Class for connecting to Discord API via Websocket. It sends messages managed by chatbox50 to the Queue of chatbox50.
 
-#### [main.js](main.js): Web側の実行プログラム．FastAPIとWebsocket接続を行います．
+#### [main.js](main.js): Executable program on the Web side that connects FastAPI and Websocket.
 
-#### [index.html](index.html): HTMLファイル
+#### [index.html](index.html): HTML file
 
-#### [style.css](style.css): チャット画面用のCSSファイル．
+#### [style.css](style.css): CSS file for chat screen.
 
-#### [main.py](main.py): 中心となる実行ファイルです．クライアントとのメッセージ接続や，DiscordServerクラス，ChatBoxクラスの非同期タスク管理を行います．
+#### [main.py](main.py): The main executable file. It manages the message connection with the client and asynchronous tasks of DiscordServer and ChatBox classes.
 
-#### [websocket_router](websocket_router.py): Webのクライアントとの送受信タスクを実行します．
+#### [websocket_router](websocket_router.py): Executes tasks for sending and receiving messages to and from Web clients.
 
-#### [requirements.txt](requirements.txt): 使用する外部ライブラリ．
+#### [requirements.txt](requirements.txt): External library to use.
 
-#### [staticfiles_router.py](staticfiles_router.py): 静的ファイルのリクエストを返します．
+#### [staticfiles_router.py](staticfiles_router.py): returns requests for static files.
 
 ## HOW TO USE
 
-```python
+````python
 import logging
 from chatbox50 import ChatBox
 from asyncio import Queue
 
-# ChatBoxを宣言します．
+# Declare the ChatBox.
 logger = logging.getLogger(__name__)
 
 cb = ChatBox(name="chatbox50",
-             s1_name="WebServer",
-             s2_name="HogeAPI",
-             s2_id_type=int,
-             _logger=logger,
-             debug=True)
+             s1_name="WebServer", s2_name="HogServer", s3_name="HogServer", s4_name="HogServer")
+s2_name = "HogeAPI", s2_id_type = int
+s2_id_type = int, _logger = logger, _logger = logger, _logger = logger
+_logger = logger, debug = True
+debug = True)
 
 web_server = WebServer()
 worker_web = cb.get_worker1
@@ -92,23 +97,24 @@ worker_web.set_received_message_callback(web_server.receive_callback)
 worker_web.set_create_callback(web_server.create_callback)
 worker_web.set_new_access_callback(web_server.access_callback)
 
-```
+````
 
-Chatboxインスタンスをプロジェクトの最上位で作成します．
-引数には以下のものを追加します．
+Creates a Chatbox instance at the top level of the project.
+Add the following arguments: 1.
 
-1. `name`: ChatBoxの名前．`debug=False`の場合は，`name.db`の形式で保存されます．
-2. `s1_name`, `s2_name`: ServiceWorkerごとの名前．debugログを監視する際に有益です．
-3. `s1_id_type`, `s2_id_type`: ServiceWorkerごとのユニークなIDの型を指定します．defaultはUUID
-4. `_logger`: 自身のログの設定をchatbox50ライブラリ全体に反映できます．
+``name`: The name of the ChatBox. If `debug=False`, the name is stored as `name.db`. 2.
+`s1_name`, `s2_name`: The name of each ServiceWorker, useful for monitoring the debug logs. 3.
+Default is UUID. 4.
+4.`_logger`: to reflect your own logging settings to the whole chatbox50 library.
 
-宣言した後は，`ChatBox`インスタンスから`ServiceWorker`インスタンスを取得して，そこからメッセージの送受信や，コールバックの登録を行います．
+After declaring, you can get a `ServiceWorker` instance from a `ChatBox` instance and send/receive messages and register
+callbacks from it.
 
-#### 自身の持つサービスの関数をコールバックに登録できます．
+#### can register its own service functions as callbacks.
 
-- `set_received_message_callback`: メッセージを受け取った時に実行されます．
-- `set_create_callback`: 新しいクライアントがあり，データベースに新規登録された際に呼ばれます．
-- `set_new_access_callback`: 既存，新規いずれの場合も，アクセスがあった際に呼ばれます．
+- `set_received_message_callback`: Executed when a message is received.
+- `set_create_callback`: called when a new client is registered in the database.
+- `set_new_access_callback`: called when a new or existing access is received.
 
 ```python
 from chatbox50 import ServiceWorker
@@ -121,7 +127,9 @@ sender = worker_web.get_msg_sender(client_id)
 await sender("hello world")
 ```
 
-- `get_client_queue(service_id)`: 相手側からのメッセージを受信する専用のQueueを取得できます．
-- `get_msg_sender(service_id)`: そのConnection専用の送信用関数を取得できます．`sender("hello")`のように文字列を引数で与えるだけでメッセージを送れます．
-- `receive_queue`: 全てのServiceWorkerに送られてきたメッセージを受け取ることができるQueueです．
-- `send_queue`: どのConnectionへも送信できます．ただし送信先を指定する必要があります．(基本的に，senderインスタンスを使用する)
+- `get_client_queue(service_id)`: get a dedicated Queue to receive messages from the peer.
+- `get_msg_sender(service_id)`: get a dedicated sender function for the connection. You can send a message by simply
+  giving a string argument such as `sender("hello")`.
+- `receive_queue`: A queue that can receive messages sent to all ServiceWorkers.
+- `send_queue`: A queue that can send messages to any connection. However, the destination must be specified. (
+  Basically, a sender instance is used.)
