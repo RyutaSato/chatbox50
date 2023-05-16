@@ -63,11 +63,13 @@ ChatBox50は，それらのプラットフォームやライブラリにとら�
 
 #### [main.py](main.py): 中心となる実行ファイルです．クライアントとのメッセージ接続や，DiscordServerクラス，ChatBoxクラスの非同期タスク管理を行います．
 
+#### [websocket_router](websocket_router.py): Webのクライアントとの送受信タスクを実行します．
+
 #### [requirements.txt](requirements.txt): 使用する外部ライブラリ．
 
 #### [staticfiles_router.py](staticfiles_router.py): 静的ファイルのリクエストを返します．
 
-#### HOW TO USE
+## HOW TO USE
 
 ```python
 import logging
