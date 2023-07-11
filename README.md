@@ -100,7 +100,7 @@ worker_web.set_new_access_callback(web_server.access_callback)
 Creates a Chatbox instance at the top level of the project.
 Add the following arguments: 1.
 
-``name`: The name of the ChatBox. If `debug=False`, the name is stored as `name.db`. 2.
+`name`: The name of the ChatBox. If `debug=False`, the name is stored as `name.db`. 2.
 `s1_name`, `s2_name`: The name of each ServiceWorker, useful for monitoring the debug logs. 3.
 Default is UUID. 4.
 4.`_logger`: to reflect your own logging settings to the whole chatbox50 library.
