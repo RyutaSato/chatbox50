@@ -1,28 +1,20 @@
 # ChatBox50
+![demo](https://github.com/RyutaSato/chatbox50/assets/62854047/a250e7ef-f851-4d29-a718-38794b214abd)
 
-#### Description: ChatBox50 is a Python library that allows users to exchange messages between different services.
-
-It also persists their history properly and automatically by SQLite.
-
+#### Description: ChatBox50 is a Python library that allows users to exchange messages between different services.  
+It also persists their history properly and automatically by SQLite.  
 This work uses JavaScript on the web to perform WebSocket communication with a web server using FastAPI to exchange
-messages with the Discord server.
-
+messages with the Discord server.  
 When the program is executed, a website is accessed; a chat page is displayed on the website and a unique ID (UUID) is
-automatically assigned.
-
-chatbox50 creates a thread in DiscordServer via a callback that allows chatting with the accessing client.
-
+automatically assigned.  
+chatbox50 creates a thread in DiscordServer via a callback that allows chatting with the accessing client.  
 In addition, chatbox50 persists the client's UUID and Discord channel ID in SQL, so that the client can continue the
-conversation when accessing the server again.
+conversation when accessing the server again.  
 
-In addition, the data of these messages are also stored in SQL.
-
-All processes are asynchronous and work seamlessly even when there are many accesses.
-
-This is an example of message exchange between the Web and a Discord application.
-
-In fact, it is not limited to this example, but can be used in all cases.
-
+In addition, the data of these messages are also stored in SQL.  
+All processes are asynchronous and work seamlessly even when there are many accesses.  
+This is an example of message exchange between the Web and a Discord application.  
+In fact, it is not limited to this example, but can be used in all cases.  
 ChatBox50 is designed to function as a platform- and library-independent Python library.
 
 ## Role of each file
@@ -97,13 +89,13 @@ worker_web.set_new_access_callback(web_server.access_callback)
 
 ````
 
-Creates a Chatbox instance at the top level of the project.
-Add the following arguments: 1.
+Creates a Chatbox instance at the top level of the project.  
+Add the following arguments:
 
-`name`: The name of the ChatBox. If `debug=False`, the name is stored as `name.db`. 2.
-`s1_name`, `s2_name`: The name of each ServiceWorker, useful for monitoring the debug logs. 3.
-Default is UUID. 4.
-4.`_logger`: to reflect your own logging settings to the whole chatbox50 library.
+- `name`: The name of the ChatBox. If `debug=False`, the name is stored as `name.db`. 2.
+- `s1_name`, `s2_name`: The name of each ServiceWorker, useful for monitoring the debug logs.
+- `s1_id_type`, `s2_id_type`: The type of unique id. Default is UUID.
+- `_logger`: to reflect your own logging settings to the whole chatbox50 library.
 
 After declaring, you can get a `ServiceWorker` instance from a `ChatBox` instance and send/receive messages and register
 callbacks from it.
