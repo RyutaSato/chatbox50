@@ -75,11 +75,11 @@ from asyncio import Queue
 logger = logging.getLogger(__name__)
 
 cb = ChatBox(name="chatbox50",
-             s1_name="WebServer", s2_name="HogServer", s3_name="HogServer", s4_name="HogServer")
-s2_name = "HogeAPI", s2_id_type = int
-s2_id_type = int, _logger = logger, _logger = logger, _logger = logger
-_logger = logger, debug = True
-debug = True)
+             s1_name="WebServer",
+             s2_name="HogeAPI",
+             s2_id_type=int,
+             _logger=logger,
+             debug=True)
 
 web_server = WebServer()
 worker_web = cb.get_worker1
